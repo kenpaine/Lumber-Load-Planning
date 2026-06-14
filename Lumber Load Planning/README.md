@@ -51,6 +51,7 @@ pack and drive the color scheme and the manifest breakdowns.
 ## Using the workbook
 
 ### Planner sheet
+
 1. Set **Number of Rows** (10 or 14).
 2. Fill the **line‑item inventory**: one row per Product + Length + Grade + Pack count
    (dropdowns provided). Lineal ft, Placed, and Remaining compute automatically.
@@ -64,7 +65,9 @@ pack and drive the color scheme and the manifest breakdowns.
 A solved example load is included so the sheet is populated on open.
 
 ### Manifest sheet
+
 Auto‑generates from the Planner:
+
 - **Car Layout** grid (mirror of the Planner, colored by product, bordered by grade)
 - **Summary by Product**, **Summary by Grade**
 - **Placed Packs — Product × Grade** matrix
@@ -72,6 +75,7 @@ Auto‑generates from the Planner:
 Print the Manifest in **landscape** for a clean one‑page sheet.
 
 ### Pattern Library sheet
+
 Reference list of every length combination that sums to 72 ft.
 
 ---
