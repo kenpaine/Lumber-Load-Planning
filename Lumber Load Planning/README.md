@@ -7,12 +7,28 @@ and **grade**.
 
 ---
 
+## Screenshots
+
+### Browser app — `centerbeam_layout_planner.html`
+
+![Centerbeam Lumber Layout Planner — browser app](html_app_screenshot.png)
+
+### Excel workbook — `Centerbeam_Lumber_Layout_Planner.xlsm`
+
+Macro‑enabled workbook with one‑click **Solve Layout** / **Clear Grid** / **Clear All**
+buttons on the Planner sheet.
+
+![Centerbeam Lumber Layout Planner — Excel workbook](excel_screenshot.png)
+
+---
+
 ## What's in this project
 
 | File | What it is |
 |------|-----------|
-| `Centerbeam_Lumber_Layout_Planner.xlsx` | **The main tool.** A standalone Excel workbook (no macros required). |
-| `CenterbeamSolver.bas` | Optional VBA module that adds one‑click **Solve** / **Clear** buttons. |
+| `Centerbeam_Lumber_Layout_Planner.xlsm` | **The main tool (recommended).** Macro‑enabled workbook with built‑in **Solve Layout / Clear Grid / Clear All** buttons. Click *Enable Content* on open. |
+| `Centerbeam_Lumber_Layout_Planner.xlsx` | Same workbook **without macros** (no buttons) — use if your environment blocks macros. |
+| `CenterbeamSolver.bas` | The VBA module behind the buttons (already embedded in the `.xlsm`; kept here as source). |
 | `centerbeam_layout_planner.html` | **Browser app** with the full feature set (open in any browser, no install). Line‑item inventory (product × length × grade), the same column‑stacking solver, a proportional visual car layout, Row Detail, a printable one‑page Manifest with pick list, and the length‑colored Pattern Library. |
 | `source/` | Python scripts that generate the workbook (for maintenance / regeneration). |
 
@@ -60,21 +76,24 @@ Reference list of every length combination that sums to 72 ft.
 
 ---
 
-## Optional: one‑click Solve / Clear buttons (macros)
+## One‑click Solve / Clear buttons (macros)
 
-The workbook is fully usable **without** macros. To add buttons:
+The `.xlsm` already has three buttons wired up on the Planner sheet — just open it and
+click **Enable Content**:
 
-1. **Save As → Excel Macro‑Enabled Workbook (.xlsm).**
-2. Press **Alt+F11**, then **File → Import File…** and select `CenterbeamSolver.bas`
-   (or **Insert → Module** and paste its contents).
-3. On the Planner sheet: **Developer → Insert → Button (Form Control)**; assign
-   `SolveLayout`. Add a second button and assign `ClearAll`.
-   (Enable the Developer tab via **File → Options → Customize Ribbon** if hidden.)
-4. **Solve** reads the line‑item inventory, fills every selected row to 72 ft, and
-   assigns product+grade grouped so like packs stack in columns.
-   **ClearAll** empties the grid and the line items; **ClearGrid** clears the grid only.
+- **Solve Layout** — reads the line‑item inventory, fills every selected row to 72 ft, and
+  assigns product+grade grouped so like packs stack in columns.
+- **Clear Grid** — clears the layout grid only.
+- **Clear All** — empties the grid and the line items.
 
-No‑macro clear: select the grid and the line‑item cells and press **Delete**.
+Behind the buttons is the `CenterbeamSolver` VBA module (`SolveLayout`, `ClearGrid`,
+`ClearAll`), kept in source form as `CenterbeamSolver.bas`.
+
+**Using the no‑macro `.xlsx` instead?** It has no buttons. You can either add them
+yourself (**Developer → Insert → Button (Form Control)**, assign `SolveLayout` /
+`ClearGrid` / `ClearAll` after importing `CenterbeamSolver.bas` via **Alt+F11 →
+File → Import File…**), or just clear by hand: select the grid and line‑item cells and
+press **Delete**.
 
 ---
 
