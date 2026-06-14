@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build / temp artifacts
+cb3.xlsx
+cb2.xlsx
+_partial.xlsx
+meta*.json
+*.tmp
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Excel lock files
+~$*.xlsx
+~$*.xlsm
