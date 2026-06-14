@@ -11,14 +11,14 @@ and **grade**.
 
 ### Browser app — `centerbeam_layout_planner.html`
 
-![Centerbeam Lumber Layout Planner — browser app](Lumber%20Load%20Planning/html_app_screenshot.png)
+![Centerbeam Lumber Layout Planner — browser app](html_app_screenshot.png)
 
 ### Excel workbook — `Centerbeam_Lumber_Layout_Planner.xlsm`
 
 Macro‑enabled workbook with one‑click **Solve Layout** / **Clear Grid** / **Clear All**
 buttons on the Planner sheet.
 
-![Centerbeam Lumber Layout Planner — Excel workbook](Lumber%20Load%20Planning/excel_screenshot.png)
+![Centerbeam Lumber Layout Planner — Excel workbook](excel_screenshot.png)
 
 ---
 
