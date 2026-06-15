@@ -105,7 +105,7 @@ troubleshooting. The `.xlsx` copy is tailored to the macro‑free edition.
 
 ## One‑click Solve / Clear buttons (macros)
 
-The `.xlsm` has three buttons wired up on the **Auto‑Solve (VBA)** sheet — just open it
+The `.xlsm` has three buttons wired up on the **Planner** sheet — just open it
 and click **Enable Content**:
 
 - **Solve Layout** — reads the line‑item inventory, fills every selected row to 72 ft, and
@@ -176,9 +176,11 @@ the original build environment — adjust the input/output paths to your setup.)
 
 ---
 
-*Color key — Length (fill):* each of 8 · 10 · 12 · 14 · 16 · 18 · 20 ft has its own color
-*Color key — Product (border):* 2x4 blue · 2x6 green · 2x8 amber · 2x10 purple · 4x4 red · 4x6 teal · 6x6 brown
-*Color key — Grade (text):* 1 green · 2 blue · 3 orange · 4 red · 2P purple · MSR teal
+The apps use a soft **pastel / muted ("Sorbet")** palette — light fills with darker, readable text.
+
+*Color key — Length (fill):* each of 8 · 10 · 12 · 14 · 16 · 18 · 20 ft has its own pastel fill
+*Color key — Product (border):* 2x4 blue · 2x6 green · 2x8 gold · 2x10 violet · 4x4 coral · 4x6 teal · 6x6 taupe
+*Color key — Grade (text):* 1 green · 2 blue · 3 amber · 4 red · 2P purple · MSR teal
 
 ---
 
