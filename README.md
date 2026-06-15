@@ -155,5 +155,7 @@ the original build environment — adjust the input/output paths to your setup.)
 
 ## License
 
+Copyright (c) 2026 Ken Paine
+
 This project is licensed under the **GNU General Public License v3.0** — see the
 [LICENSE](LICENSE) file for the full text.
