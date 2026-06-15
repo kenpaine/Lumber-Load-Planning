@@ -11,12 +11,17 @@ and **grade**.
 
 ### Browser app — `centerbeam_layout_planner.html`
 
+Full‑featured app: line‑item inventory, **single or mixed product/grade**, the
+column‑stacking solver, a proportional visual car layout, Row Detail, a printable
+Manifest with pick list, the Pattern Library, and a light/dark theme.
+
 ![Centerbeam Lumber Layout Planner — browser app](html_app_screenshot.png)
 
 ### Excel workbook — `Centerbeam_Lumber_Layout_Planner.xlsm`
 
 Macro‑enabled workbook with one‑click **Solve Layout** / **Clear Grid** / **Clear All**
-buttons on the Planner sheet.
+buttons, live **single product/grade** auto‑fill, and a built‑in **How to Use** tab.
+(Shown below in single‑product mode — the greyed Product/Grade columns are auto‑filled.)
 
 ![Centerbeam Lumber Layout Planner — Excel workbook](excel_screenshot.png)
 
@@ -26,10 +31,10 @@ buttons on the Planner sheet.
 
 | File | What it is |
 |------|-----------|
-| `Centerbeam_Lumber_Layout_Planner.xlsm` | **The main tool (recommended).** Macro‑enabled workbook with built‑in **Solve Layout / Clear Grid / Clear All** buttons. Click *Enable Content* on open. |
-| `Centerbeam_Lumber_Layout_Planner.xlsx` | Same workbook **without macros** (no buttons) — use if your environment blocks macros. |
+| `Centerbeam_Lumber_Layout_Planner.xlsm` | **The main tool (recommended).** Macro‑enabled workbook with **Solve Layout / Clear Grid / Clear All** buttons, live single product/grade auto‑fill, and a **How to Use** tab. Click *Enable Content* on open. |
+| `Centerbeam_Lumber_Layout_Planner.xlsx` | **Macro‑free edition.** No buttons, but a native replica of the workbook: **formula‑driven single product/grade auto‑fill**, dropdowns, the colored layout grid, and the same **How to Use** tab. Solving is done in the `.xlsm` or the browser app — a `.xlsx` cannot run a solver. |
 | `CenterbeamSolver.bas` | The VBA module behind the buttons (already embedded in the `.xlsm`; kept here as source). |
-| `centerbeam_layout_planner.html` | **Browser app** with the full feature set (open in any browser, no install). Line‑item inventory (product × length × grade), the same column‑stacking solver, a proportional visual car layout, Row Detail, a printable one‑page Manifest with pick list, and the length‑colored Pattern Library. |
+| `centerbeam_layout_planner.html` | **Browser app** with the full feature set: line‑item inventory (product × length × grade), **single or mixed product/grade**, the same column‑stacking solver, a proportional visual car layout, Row Detail, a printable one‑page Manifest with pick list, the length‑colored Pattern Library, and a light/dark theme. Open in any browser, no install. |
 | `source/` | Python scripts that generate the workbook (for maintenance / regeneration). |
 
 ---
@@ -57,16 +62,19 @@ pack and drive the color scheme and the manifest breakdowns.
    - **Yes (single product/grade)** — most cars. Pick the **Product** and **Grade**
      once in the *Single Product / Grade* box. The Product and Grade columns in the
      inventory are then **greyed out and filled in automatically** — you only enter
-     **Length + Packs** on each line. Changing the box updates every line instantly.
+     **Length + Packs** on each line.
+     - In the **.xlsm**, changing the box updates every line instantly (macros).
+     - In the **.xlsx**, the same auto‑fill is driven by formulas keyed off the toggle.
    - **No (mixed)** — the Product and Grade columns become editable again; fill
-     Product + Length + Grade + Packs on every line, as before.
+     Product + Length + Grade + Packs on every line.
 
-   > Live behavior requires macros to be enabled (click *Enable Content* on open).
+   > Live behavior in the `.xlsm` requires macros to be enabled (click *Enable Content* on open).
 3. Fill the **line‑item inventory** (dropdowns provided). Lineal ft, Placed, and
    Remaining compute automatically.
 4. The **Layout Grid** shows the load, one pack per slot, each row summing to 72 ft.
-   - **Fill color = product**
-   - **Bold colored border = grade**
+   - **Fill color = length**
+   - **Bold colored border = product**
+   - **Text color = grade**
    - Cell text is the full code `product-length-grade` (e.g. `2x6-14-2`).
 5. The **Load Status** box reports utilization, full rows, packs placed/unplaced,
    and an overall verdict.
@@ -77,7 +85,7 @@ A solved example load is included so the sheet is populated on open.
 
 Auto‑generates from the Planner:
 
-- **Car Layout** grid (mirror of the Planner, colored by product, bordered by grade)
+- **Car Layout** grid (mirror of the Planner, colored by length, bordered by product)
 - **Summary by Product**, **Summary by Grade**
 - **Placed Packs — Product × Grade** matrix
 
@@ -87,12 +95,18 @@ Print the Manifest in **landscape** for a clean one‑page sheet.
 
 Reference list of every length combination that sums to 72 ft.
 
+### How to Use sheet
+
+A built‑in reference tab (placed after **Manifest**) that documents every field, the
+single vs mixed modes, the buttons, the color key, the other sheets, and
+troubleshooting. The `.xlsx` copy is tailored to the macro‑free edition.
+
 ---
 
 ## One‑click Solve / Clear buttons (macros)
 
-The `.xlsm` already has three buttons wired up on the Planner sheet — just open it and
-click **Enable Content**:
+The `.xlsm` has three buttons wired up on the **Auto‑Solve (VBA)** sheet — just open it
+and click **Enable Content**:
 
 - **Solve Layout** — reads the line‑item inventory, fills every selected row to 72 ft, and
   assigns product+grade grouped so like packs stack in columns. In **single product/grade**
@@ -103,11 +117,12 @@ click **Enable Content**:
 Behind the buttons is the `CenterbeamSolver` VBA module (`SolveLayout`, `ClearGrid`,
 `ClearAll`), kept in source form as `CenterbeamSolver.bas`.
 
-**Using the no‑macro `.xlsx` instead?** It has no buttons. You can either add them
-yourself (**Developer → Insert → Button (Form Control)**, assign `SolveLayout` /
-`ClearGrid` / `ClearAll` after importing `CenterbeamSolver.bas` via **Alt+F11 →
-File → Import File…**), or just clear by hand: select the grid and line‑item cells and
-press **Delete**.
+**Using the macro‑free `.xlsx` instead?** It has no buttons, but it still gives you
+formula‑driven single product/grade auto‑fill and the full colored layout. To generate a
+fresh layout from your own inventory, use the `.xlsm` or the browser app and read or copy
+the result. (No‑macro note: in the `.xlsx`, switching a Product/Grade cell from auto‑fill
+to a typed‑in value for mixed mode replaces that cell's formula — use the `.xlsm` for
+seamless single/mixed switching.)
 
 ---
 
@@ -126,11 +141,11 @@ press **Delete**.
 
 The same algorithm exists in three places (kept in sync):
 the workbook's pre‑solved example, the `CenterbeamSolver.bas` macro, and the
-Python in `source/`.
+JavaScript in `centerbeam_layout_planner.html` (with the generator Python in `source/`).
 
 ---
 
-## Regenerating the workbook (mainteners)
+## Regenerating the workbook (maintainers)
 
 Requires Python 3 with `openpyxl`.
 
@@ -155,11 +170,15 @@ the original build environment — adjust the input/output paths to your setup.)
   where two blocks meet, the arrangement changes because the packs differ.
 - If an inventory's lengths can't be partitioned into exact 72‑ft rows, the solver
   fills as many exact rows as possible and flags the rest as unplaced.
+- The macro‑free **`.xlsx` does not run the solver** — it shows a pre‑solved example and
+  computes the tallies/status with formulas. Use the `.xlsm` or the browser app to solve
+  a new inventory.
 
 ---
 
-*Color key — Product (fill):* 2x4 blue · 2x6 green · 2x8 amber · 2x10 purple · 4x4 red · 4x6 teal · 6x6 brown
-*Color key — Grade (border):* 1 green · 2 blue · 3 orange · 4 red · 2P purple · MSR teal
+*Color key — Length (fill):* each of 8 · 10 · 12 · 14 · 16 · 18 · 20 ft has its own color
+*Color key — Product (border):* 2x4 blue · 2x6 green · 2x8 amber · 2x10 purple · 4x4 red · 4x6 teal · 6x6 brown
+*Color key — Grade (text):* 1 green · 2 blue · 3 orange · 4 red · 2P purple · MSR teal
 
 ---
 
