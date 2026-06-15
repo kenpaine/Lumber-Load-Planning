@@ -150,3 +150,10 @@ the original build environment — adjust the input/output paths to your setup.)
 
 *Color key — Product (fill):* 2x4 blue · 2x6 green · 2x8 amber · 2x10 purple · 4x4 red · 4x6 teal · 6x6 brown
 *Color key — Grade (border):* 1 green · 2 blue · 3 orange · 4 red · 2P purple · MSR teal
+
+---
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0** — see the
+[LICENSE](LICENSE) file for the full text.
