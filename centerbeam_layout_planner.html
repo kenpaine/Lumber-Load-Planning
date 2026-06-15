@@ -62,7 +62,7 @@
   .alert.bad{background:var(--alert-bad-bg);border:1px solid var(--alert-bad-bd);color:var(--red2)}
   .adot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
   .legend{display:flex;flex-wrap:wrap;gap:5px}
-  .lswatch{font-size:10px;font-weight:700;color:#fff;padding:2px 7px;border-radius:3px}
+  .lswatch{font-size:10px;font-weight:700;color:#33414f;padding:2px 7px;border-radius:3px;border:0.5px solid rgba(120,120,120,.35)}
   .lgrade{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;background:var(--bg3);border:2px solid}
   .main{display:flex;flex-direction:column;overflow:hidden}
   .tabbar{display:flex;gap:1px;padding:0 14px;background:var(--bg2);border-bottom:1px solid var(--border)}
@@ -213,12 +213,13 @@ const TARGET=72, MAX_SLOTS=9;
 const PRODUCTS=["2x4","2x6","2x8","2x10","4x4","4x6","6x6"];
 const LENGTHS=[8,10,12,14,16,18,20];
 const GRADES=["1","2","3","4","2P","MSR"];
-const PCOLORS={"2x4":"#3A7CB8","2x6":"#3D8A4F","2x8":"#C8892A","2x10":"#7A4FA0","4x4":"#B0473C","4x6":"#2E8A8A","6x6":"#6B4A2F"};
-const GCOLORS={"1":"#1A7A1A","2":"#2A5AAA","3":"#D08020","4":"#C03020","2P":"#7A3AA0","MSR":"#0A8A8A"};
-const LCOLORS={8:"#3A6E9E",10:"#2E7A5E",12:"#7A5E2E",14:"#6E3A7A",16:"#8A3A3A",18:"#2E7A6E",20:"#4A6E2E"};
-// Color hierarchy: LENGTH = primary (fill), PRODUCT = secondary (thick border), GRADE = tertiary (text color).
-// GFONT = light grade tints, readable as text on the dark length fills.
-const GFONT={"1":"#BFF2BF","2":"#BDD7FF","3":"#FFD79E","4":"#FFC0B8","2P":"#E6C2FA","MSR":"#A8EEEE"};
+const PCOLORS={"2x4":"#6F9AC4","2x6":"#66B083","2x8":"#D9B25C","2x10":"#A07EBE","4x4":"#D6857A","4x6":"#5FB3AC","6x6":"#A98A66"};
+const GCOLORS={"1":"#357A48","2":"#3A66A0","3":"#B06A16","4":"#B5453A","2P":"#7E4FA6","MSR":"#2A8585"};
+const LCOLORS={8:"#BBD4EA",10:"#C2E5C9",12:"#FBE7B2",14:"#E5CDEE",16:"#FAC4BC",18:"#BFEAE0",20:"#DCE7AE"};
+// Sorbet palette: LENGTH = light pastel fill, PRODUCT = thick border, GRADE = text color.
+// Fills are light, so GFONT uses the darker grade tones for readable text on the fills.
+const GFONT={"1":"#357A48","2":"#3A66A0","3":"#B06A16","4":"#B5453A","2P":"#7E4FA6","MSR":"#2A8585"};
+const INK="#33414f";
 // Canvas "chrome" palette per theme (data colors LCOLORS/PCOLORS/GFONT stay the same in both).
 const CV_THEME={
   dark:{bg:"#161c12",tie:"#1e1610",deck:"#1e2a1a",deckStroke:"#4d5e47",rail:"#52525e",rowBg:"#1a221a",rowStroke:"#2a3828",lblExact:"#5c9e44",lblOver:"#b84a3c",lblNorm:"#4a5e44",emptyFill:"rgba(255,255,255,.03)",emptyText:"#3a4a38",exactMark:"#7bbf60",shortText:"#c8892a",bottomRail:"#8a9090",rulerLine:"#4a5e44",tickText:"#607858",titleText:"#8a9a82"},
@@ -405,8 +406,8 @@ function renderStats(){
 }
 function buildLegends(){
   document.getElementById("legendLength").innerHTML=LENGTHS.map(L=>`<span class="lswatch" style="background:${LCOLORS[L]}">${L}'</span>`).join("");
-  document.getElementById("legendProduct").innerHTML=PRODUCTS.map(p=>`<span class="lgrade" style="border-color:${PCOLORS[p]};color:#cfe0c8;background:#2b3126">${p}</span>`).join("");
-  document.getElementById("legendGrade").innerHTML=GRADES.map(g=>`<span class="lswatch" style="background:#3a4038;color:${GFONT[g]}">${g}</span>`).join("");
+  document.getElementById("legendProduct").innerHTML=PRODUCTS.map(p=>`<span class="lgrade" style="border-color:${PCOLORS[p]};color:var(--text2);background:var(--bg3)">${p}</span>`).join("");
+  document.getElementById("legendGrade").innerHTML=GRADES.map(g=>`<span class="lswatch" style="background:#ebede6;color:${GFONT[g]}">${g}</span>`).join("");
 }
 
 // ---------- canvas ----------
@@ -461,8 +462,8 @@ function render(){
   state.rows.forEach(r=>r.forEach(c=>{uL.add(c.length);uP.add(c.product);uG.add(c.grade);}));
   let lh="";
   [...uL].sort((a,b)=>a-b).forEach(L=>lh+=`<span class="li"><span class="lib" style="background:${LCOLORS[L]}"></span>${L}'</span>`);
-  [...uP].forEach(p=>lh+=`<span class="li"><span class="lib" style="background:#222;border:2.5px solid ${PCOLORS[p]}"></span>${p}</span>`);
-  [...uG].forEach(g=>lh+=`<span class="li"><span style="color:${GFONT[g]};background:#333;padding:1px 5px;border-radius:2px;font-weight:700">${g}</span></span>`);
+  [...uP].forEach(p=>lh+=`<span class="li"><span class="lib" style="background:var(--bg3);border:2.5px solid ${PCOLORS[p]}"></span>${p}</span>`);
+  [...uG].forEach(g=>lh+=`<span class="li"><span style="color:${GFONT[g]};background:#ebede6;padding:1px 5px;border-radius:2px;font-weight:700">${g}</span></span>`);
   document.getElementById("legendBar").innerHTML=lh||'<span class="muted" style="font-size:10px">No load yet</span>';
 }
 function zoom(d){ state.zoom=Math.max(.2,Math.min(4,state.zoom+d*0.15)); document.getElementById("zoomLabel").textContent=Math.round(state.zoom*100)+"%"; render(); }
@@ -527,18 +528,18 @@ function renderManifest(){
   const sp=placedSummaryProduct(), sg=placedSummaryGrade();
   h+=`<div class="twocol">`;
   h+=`<div><div class="secttitle">Summary by Product</div><table class="t"><thead><tr><th>Product</th><th>Packs</th><th>Lineal Ft</th></tr></thead><tbody>`;
-  PRODUCTS.forEach(p=>{ if(sp[p].packs) h+=`<tr><td class="cell-pack" style="border-color:${PCOLORS[p]};color:#cfe0c8;background:#2b3126">${p}</td><td>${sp[p].packs}</td><td>${sp[p].lf}</td></tr>`; });
+  PRODUCTS.forEach(p=>{ if(sp[p].packs) h+=`<tr><td class="cell-pack" style="border-color:${PCOLORS[p]};color:var(--text2);background:var(--bg3)">${p}</td><td>${sp[p].packs}</td><td>${sp[p].lf}</td></tr>`; });
   h+=`</tbody></table></div>`;
   h+=`<div><div class="secttitle">Summary by Grade</div><table class="t"><thead><tr><th>Grade</th><th>Packs</th><th>Lineal Ft</th></tr></thead><tbody>`;
-  GRADES.forEach(g=>{ if(sg[g].packs) h+=`<tr><td style="font-weight:700;color:${GFONT[g]};background:#333">${g}</td><td>${sg[g].packs}</td><td>${sg[g].lf}</td></tr>`; });
+  GRADES.forEach(g=>{ if(sg[g].packs) h+=`<tr><td style="font-weight:700;color:${GFONT[g]};background:#ebede6">${g}</td><td>${sg[g].packs}</td><td>${sg[g].lf}</td></tr>`; });
   h+=`</tbody></table></div></div>`;
   const pl=pickList();
   h+=`<div class="secttitle">Pick List — packs to pull for this car</div>`;
   h+=`<table class="t"><thead><tr><th>#</th><th>Product</th><th>Length</th><th>Grade</th><th>Packs to Pick</th></tr></thead><tbody>`;
   pl.forEach((c,i)=>{ h+=`<tr><td>${i+1}</td>
-    <td class="cell-pack" style="border-color:${PCOLORS[c.product]};color:#cfe0c8;background:#2b3126">${c.product}</td>
-    <td style="color:#fff;background:${LCOLORS[c.length]};font-weight:700">${c.length} ft</td>
-    <td style="font-weight:700;color:${GFONT[c.grade]};background:#333">${c.grade}</td>
+    <td class="cell-pack" style="border-color:${PCOLORS[c.product]};color:var(--text2);background:var(--bg3)">${c.product}</td>
+    <td style="color:${INK};background:${LCOLORS[c.length]};font-weight:700">${c.length} ft</td>
+    <td style="font-weight:700;color:${GFONT[c.grade]};background:#ebede6">${c.grade}</td>
     <td style="font-weight:700">${c.packs}</td></tr>`; });
   const tot=pl.reduce((s,c)=>s+c.packs,0);
   h+=`<tr><td colspan="4" style="font-weight:700;text-align:right">TOTAL</td><td style="font-weight:700">${tot}</td></tr></tbody></table>`;
@@ -552,11 +553,11 @@ function renderPatterns(){
   pats.sort((a,b)=>{ if(a.length!==b.length) return a.length-b.length; return cmpRows(a,b); });
   let h=`<div class="secttitle">Valid 72‑ft Length Patterns (color‑coded by length)</div>`;
   h+=`<table class="t"><thead><tr><th>#</th><th>Lengths</th>`;
-  LENGTHS.forEach(L=>h+=`<th style="background:${LCOLORS[L]};color:#fff">${L}'</th>`);
+  LENGTHS.forEach(L=>h+=`<th style="background:${LCOLORS[L]};color:${INK}">${L}'</th>`);
   h+=`<th>Total</th></tr></thead><tbody>`;
   pats.forEach((p,i)=>{ const cnt={}; p.forEach(x=>cnt[x]=(cnt[x]||0)+1);
     h+=`<tr><td>${i+1}</td><td style="text-align:left">${p.join("  ")}</td>`;
-    LENGTHS.forEach(L=>{ const v=cnt[L]||0; h+=`<td style="${v?`background:${LCOLORS[L]};color:#fff;font-weight:700`:""}">${v||""}</td>`; });
+    LENGTHS.forEach(L=>{ const v=cnt[L]||0; h+=`<td style="${v?`background:${LCOLORS[L]};color:${INK};font-weight:700`:""}">${v||""}</td>`; });
     h+=`<td style="font-weight:700">72</td></tr>`; });
   h+=`</tbody></table>`;
   document.getElementById("patterns").innerHTML=h;
