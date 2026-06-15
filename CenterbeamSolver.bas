@@ -20,6 +20,21 @@ Sub SolveLayout()
     Dim numRows As Long: numRows = ws.Range("C5").Value
     Dim target As Long: target = ws.Range("C6").Value
 
+    ' --- single product/grade mode ---
+    ' When C7 = "Yes", the whole car uses one product + grade. The user only needs to
+    ' enter Length + Packs on each line; blank Product/Grade cells are filled with the
+    ' defaults set in G5 (product) and G6 (grade). Any value typed on a line is kept.
+    Dim singleMode As Boolean
+    singleMode = (UCase(Trim(CStr(ws.Range("C7").Value))) = "YES")
+    Dim defP As String: defP = Trim(CStr(ws.Range("G5").Value))
+    Dim defG As String: defG = Trim(CStr(ws.Range("G6").Value))
+    If singleMode And defP = "" Then
+        MsgBox "Single product/grade mode is ON, but no default Product is set." & vbCrLf & _
+               "Pick a Product (and Grade) in the 'Single Product / Grade' box, " & _
+               "or set the toggle to No.", vbExclamation
+        Exit Sub
+    End If
+
     ' --- read line items ---
     Dim nItems As Long: nItems = 0
     Dim itP() As String, itL() As Long, itG() As String, itQ() As Long
@@ -33,10 +48,22 @@ Sub SolveLayout()
         Dim ll As Variant: ll = ws.Cells(r, 3).Value
         Dim gg As String: gg = Trim(CStr(ws.Cells(r, 4).Value))
         Dim qq As Variant: qq = ws.Cells(r, 5).Value
+        ' In single mode, fill blank Product/Grade from the defaults (per-line entries win).
+        If singleMode And IsNumeric(ll) And IsNumeric(qq) Then
+            If CLng(qq) > 0 Then
+                If pp = "" Then pp = defP
+                If gg = "" Then gg = defG
+            End If
+        End If
         If pp <> "" And IsNumeric(ll) And IsNumeric(qq) Then
             If CLng(qq) > 0 Then
                 nItems = nItems + 1
                 itP(nItems) = pp: itL(nItems) = CLng(ll): itG(nItems) = gg: itQ(nItems) = CLng(qq)
+                ' Write resolved product/grade back so the tally + status formulas compute.
+                If singleMode Then
+                    ws.Cells(r, 2).Value = pp
+                    ws.Cells(r, 4).Value = gg
+                End If
             End If
         End If
     Next r

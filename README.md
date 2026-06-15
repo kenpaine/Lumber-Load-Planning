@@ -53,13 +53,20 @@ pack and drive the color scheme and the manifest breakdowns.
 ### Planner sheet
 
 1. Set **Number of Rows** (10 or 14).
-2. Fill the **line‑item inventory**: one row per Product + Length + Grade + Pack count
-   (dropdowns provided). Lineal ft, Placed, and Remaining compute automatically.
-3. The **Layout Grid** shows the load, one pack per slot, each row summing to 72 ft.
+2. Choose how the car is loaded with the **Single product/grade?** toggle:
+   - **Yes (single product/grade)** — most cars. Pick the **Product** and **Grade**
+     once in the *Single Product / Grade* box, then fill the inventory with just
+     **Length + Packs** on each line. On Solve, the blank Product/Grade cells are
+     filled in for you. (Any value you do type on a line is kept, so you can still
+     mix in the odd different pack.)
+   - **No (mixed)** — fill Product + Length + Grade + Packs on every line, as before.
+3. Fill the **line‑item inventory** (dropdowns provided). Lineal ft, Placed, and
+   Remaining compute automatically.
+4. The **Layout Grid** shows the load, one pack per slot, each row summing to 72 ft.
    - **Fill color = product**
    - **Bold colored border = grade**
    - Cell text is the full code `product-length-grade` (e.g. `2x6-14-2`).
-4. The **Load Status** box reports utilization, full rows, packs placed/unplaced,
+5. The **Load Status** box reports utilization, full rows, packs placed/unplaced,
    and an overall verdict.
 
 A solved example load is included so the sheet is populated on open.
@@ -86,7 +93,8 @@ The `.xlsm` already has three buttons wired up on the Planner sheet — just ope
 click **Enable Content**:
 
 - **Solve Layout** — reads the line‑item inventory, fills every selected row to 72 ft, and
-  assigns product+grade grouped so like packs stack in columns.
+  assigns product+grade grouped so like packs stack in columns. In **single product/grade**
+  mode it first fills any blank Product/Grade cells from the defaults you picked.
 - **Clear Grid** — clears the layout grid only.
 - **Clear All** — empties the grid and the line items.
 
