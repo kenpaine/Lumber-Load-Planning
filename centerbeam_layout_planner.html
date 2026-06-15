@@ -125,13 +125,27 @@
         <option value="14" selected>14 Rows</option>
       </select>
     </div>
+    <div>
+      <label>Single product / grade?</label>
+      <select id="singleMode" onchange="toggleSingle()">
+        <option value="no" selected>No — mixed load</option>
+        <option value="yes">Yes — one product + grade</option>
+      </select>
+    </div>
+    <div id="singleBox" style="display:none">
+      <div class="addgrid">
+        <div><label>Product (all rows)</label><select id="singleProduct" onchange="applySingle()"></select></div>
+        <div><label>Grade (all rows)</label><select id="singleGrade" onchange="applySingle()"></select></div>
+      </div>
+    </div>
 
     <div class="sec">Add Lumber Pack</div>
     <div class="addgrid">
-      <div><label>Product</label><select id="addProduct"></select></div>
-      <div><label>Length</label><select id="addLength"></select></div>
-      <div><label>Grade</label><select id="addGrade"></select></div>
-      <div><label>Packs</label><input type="number" id="addQty" value="1" min="1" max="999"></div>
+      <div id="addProdField"><label>Product</label><select id="addProduct"></select></div>
+      <div id="addLenField"><label>Length</label><select id="addLength"></select></div>
+      <div id="addGradeField"><label>Grade</label><select id="addGrade"></select></div>
+      <div id="addQtyField"><label>Packs</label><input type="number" id="addQty" value="1" min="1" max="999"></div>
+      <div class="full" id="singleHint" style="display:none;font-size:11px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 8px"></div>
       <button class="btn primary full" onclick="addItem()">+ Add to Inventory</button>
     </div>
 
@@ -211,7 +225,7 @@ const CV_THEME={
   light:{bg:"#e7ebe1",tie:"#d7cdc0",deck:"#f3f0e6",deckStroke:"#9aa892",rail:"#9a9aa6",rowBg:"#ffffff",rowStroke:"#d2dbcb",lblExact:"#3d7a28",lblOver:"#b03020",lblNorm:"#8a9a82",emptyFill:"rgba(0,0,0,.035)",emptyText:"#aab6a2",exactMark:"#3d7a28",shortText:"#a0680f",bottomRail:"#808896",rulerLine:"#9aaa92",tickText:"#7f8f77",titleText:"#3d5e30"}
 };
 
-let state={numRows:14,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark"};
+let state={numRows:14,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2"};
 
 // ---------- solver ----------
 function allPatterns(types){
@@ -277,7 +291,13 @@ function init(){
   fillSelect("addProduct",PRODUCTS);
   fillSelect("addLength",LENGTHS,L=>L+" ft");
   fillSelect("addGrade",GRADES,g=>"Grade "+g);
+  fillSelect("singleProduct",PRODUCTS);
+  fillSelect("singleGrade",GRADES,g=>"Grade "+g);
   document.getElementById("addLength").value="16";
+  document.getElementById("singleProduct").value=state.singleProduct;
+  document.getElementById("singleGrade").value=state.singleGrade;
+  document.getElementById("singleMode").value=state.singleMode?"yes":"no";
+  syncSingleUI();
   state.numRows=10; document.getElementById("numRows").value="10";
   state.items=[
     {product:"2x4",length:16,grade:"2",qty:2},
@@ -291,13 +311,43 @@ function init(){
 }
 function reconfigure(){ state.numRows=parseInt(document.getElementById("numRows").value); solveLayout(); }
 function addItem(){
-  const product=document.getElementById("addProduct").value;
+  const product=state.singleMode?state.singleProduct:document.getElementById("addProduct").value;
   const length=parseInt(document.getElementById("addLength").value);
-  const grade=document.getElementById("addGrade").value;
+  const grade=state.singleMode?state.singleGrade:document.getElementById("addGrade").value;
   const qty=parseInt(document.getElementById("addQty").value)||0;
   if(qty<1) return;
   const ex=state.items.find(it=>it.product===product&&it.length===length&&it.grade===grade);
   if(ex) ex.qty+=qty; else state.items.push({product,length,grade,qty});
+  solveLayout();
+}
+
+// ---------- single product/grade mode ----------
+function syncSingleUI(){
+  const on=state.singleMode;
+  document.getElementById("singleBox").style.display=on?"":"none";
+  document.getElementById("addProdField").style.display=on?"none":"";
+  document.getElementById("addGradeField").style.display=on?"none":"";
+  const hint=document.getElementById("singleHint");
+  hint.style.display=on?"":"none";
+  if(on) hint.innerHTML=`All packs: <b style="color:var(--green2)">${state.singleProduct}</b> · Grade <b style="color:var(--green2)">${state.singleGrade}</b>`;
+}
+function toggleSingle(){
+  state.singleMode=document.getElementById("singleMode").value==="yes";
+  if(state.singleMode) applySingle(); else { syncSingleUI(); renderAll(); }
+}
+function applySingle(){
+  state.singleProduct=document.getElementById("singleProduct").value;
+  state.singleGrade=document.getElementById("singleGrade").value;
+  if(state.singleMode){
+    const merged={};
+    for(const it of state.items){
+      const k=it.length;
+      if(merged[k]) merged[k].qty+=it.qty;
+      else merged[k]={product:state.singleProduct,length:it.length,grade:state.singleGrade,qty:it.qty};
+    }
+    state.items=LENGTHS.filter(L=>merged[L]).map(L=>merged[L]);
+  }
+  syncSingleUI();
   solveLayout();
 }
 function removeItem(i){ state.items.splice(i,1); solveLayout(); }
