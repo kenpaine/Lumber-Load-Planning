@@ -9,12 +9,20 @@
     --bg:#1a1f16;--bg2:#222820;--bg3:#2b3126;--border:#3d4a38;--border2:#4d5e47;
     --text:#d8e4d2;--text2:#9aaa92;--text3:#6a7864;
     --green:#5c9e44;--green2:#7bbf60;--green3:#3d7a28;--amber:#c8892a;--amber2:#e0a840;--red:#b84a3c;--red2:#d45e50;
+    --alert-ok-bg:#1a2e18;--alert-ok-bd:#2f5a22;--alert-warn-bg:#2e2010;--alert-warn-bd:#6a4400;--alert-bad-bg:#2e1010;--alert-bad-bd:#6a2020;
+  }
+  [data-theme="light"]{
+    --bg:#eaeee4;--bg2:#f5f7f1;--bg3:#ffffff;--border:#d3dccb;--border2:#bdc9b3;
+    --text:#283026;--text2:#566350;--text3:#84907c;
+    --green:#4e8c3a;--green2:#2f7d1f;--green3:#3d7a28;--amber:#b1771d;--amber2:#9c5e0c;--red:#b8463a;--red2:#bf3327;
+    --alert-ok-bg:#e4f3df;--alert-ok-bd:#bbe0ad;--alert-warn-bg:#fbf0d8;--alert-warn-bd:#e7d199;--alert-bad-bg:#fbe3df;--alert-bad-bd:#e8b6ae;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
   header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;gap:16px;height:52px}
   header h1{font-size:15px;font-weight:600;color:var(--green2);display:flex;align-items:center;gap:8px}
   .sub{font-size:11px;color:var(--text3);margin-left:auto}
+  .theme-toggle{margin-left:14px;padding:5px 11px;font-size:11px;white-space:nowrap}
   .app{display:grid;grid-template-columns:310px 1fr;height:calc(100vh - 52px)}
   .sidebar{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
   .sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--text3);padding-bottom:5px;border-bottom:1px solid var(--border);margin-top:2px}
@@ -49,9 +57,9 @@
   .pbar{width:100%;height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:5px}
   .pfill{height:100%;border-radius:3px;transition:width .3s,background .3s}
   .alert{padding:7px 10px;border-radius:5px;font-size:11px;display:flex;align-items:center;gap:6px}
-  .alert.ok{background:#1a2e18;border:1px solid var(--green3);color:var(--green2)}
-  .alert.warn{background:#2e2010;border:1px solid #6a4400;color:var(--amber2)}
-  .alert.bad{background:#2e1010;border:1px solid #6a2020;color:var(--red2)}
+  .alert.ok{background:var(--alert-ok-bg);border:1px solid var(--alert-ok-bd);color:var(--green2)}
+  .alert.warn{background:var(--alert-warn-bg);border:1px solid var(--alert-warn-bd);color:var(--amber2)}
+  .alert.bad{background:var(--alert-bad-bg);border:1px solid var(--alert-bad-bd);color:var(--red2)}
   .adot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
   .legend{display:flex;flex-wrap:wrap;gap:5px}
   .lswatch{font-size:10px;font-weight:700;color:#fff;padding:2px 7px;border-radius:3px}
@@ -104,6 +112,7 @@
 <header>
   <h1>🚃 Centerbeam Lumber Car Layout Planner</h1>
   <span class="sub">72 ft · product × length × grade · exact 72‑ft rows</span>
+  <button class="btn theme-toggle" id="themeBtn" onclick="toggleTheme()" title="Toggle light / dark mode">🌙 Dark</button>
 </header>
 
 <div class="app">
@@ -196,8 +205,13 @@ const LCOLORS={8:"#3A6E9E",10:"#2E7A5E",12:"#7A5E2E",14:"#6E3A7A",16:"#8A3A3A",1
 // Color hierarchy: LENGTH = primary (fill), PRODUCT = secondary (thick border), GRADE = tertiary (text color).
 // GFONT = light grade tints, readable as text on the dark length fills.
 const GFONT={"1":"#BFF2BF","2":"#BDD7FF","3":"#FFD79E","4":"#FFC0B8","2P":"#E6C2FA","MSR":"#A8EEEE"};
+// Canvas "chrome" palette per theme (data colors LCOLORS/PCOLORS/GFONT stay the same in both).
+const CV_THEME={
+  dark:{bg:"#161c12",tie:"#1e1610",deck:"#1e2a1a",deckStroke:"#4d5e47",rail:"#52525e",rowBg:"#1a221a",rowStroke:"#2a3828",lblExact:"#5c9e44",lblOver:"#b84a3c",lblNorm:"#4a5e44",emptyFill:"rgba(255,255,255,.03)",emptyText:"#3a4a38",exactMark:"#7bbf60",shortText:"#c8892a",bottomRail:"#8a9090",rulerLine:"#4a5e44",tickText:"#607858",titleText:"#8a9a82"},
+  light:{bg:"#e7ebe1",tie:"#d7cdc0",deck:"#f3f0e6",deckStroke:"#9aa892",rail:"#9a9aa6",rowBg:"#ffffff",rowStroke:"#d2dbcb",lblExact:"#3d7a28",lblOver:"#b03020",lblNorm:"#8a9a82",emptyFill:"rgba(0,0,0,.035)",emptyText:"#aab6a2",exactMark:"#3d7a28",shortText:"#a0680f",bottomRail:"#808896",rulerLine:"#9aaa92",tickText:"#7f8f77",titleText:"#3d5e30"}
+};
 
-let state={numRows:14,items:[],rows:[],unplaced:[],zoom:1,tab:"visual"};
+let state={numRows:14,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark"};
 
 // ---------- solver ----------
 function allPatterns(types){
@@ -350,22 +364,23 @@ const PXFT=11, ROWH=30, ROWGAP=4, PADX=64, PADY=58;
 function render(){
   const cv=document.getElementById("cv"); if(!cv) return;
   const z=state.zoom, pxft=PXFT*z, rowH=ROWH*z, gap=ROWGAP*z, padX=PADX*z, padY=PADY*z;
+  const C=CV_THEME[state.theme]||CV_THEME.dark;
   const carPx=TARGET*pxft, n=state.numRows;
   const H=padY*2+n*(rowH+gap)+26*z;
   cv.width=Math.round(carPx+padX*2); cv.height=Math.round(H);
   cv.style.width=cv.width+"px"; cv.style.height=cv.height+"px";
   const ctx=cv.getContext("2d"); ctx.clearRect(0,0,cv.width,cv.height);
-  ctx.fillStyle="#161c12"; ctx.fillRect(0,0,cv.width,cv.height);
-  ctx.fillStyle="#1e1610"; for(let tx=padX;tx<padX+carPx;tx+=13*z) ctx.fillRect(tx,0,5*z,cv.height);
-  ctx.fillStyle="#1e2a1a"; ctx.fillRect(padX,padY/2,carPx,cv.height-padY);
-  ctx.strokeStyle="#4d5e47"; ctx.lineWidth=1.5*z; ctx.strokeRect(padX,padY/2,carPx,cv.height-padY);
-  ctx.fillStyle="#52525e"; ctx.fillRect(padX,padY-7*z,carPx,7*z); ctx.fillRect(padX,padY+n*(rowH+gap),carPx,7*z);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.fillStyle=C.tie; for(let tx=padX;tx<padX+carPx;tx+=13*z) ctx.fillRect(tx,0,5*z,cv.height);
+  ctx.fillStyle=C.deck; ctx.fillRect(padX,padY/2,carPx,cv.height-padY);
+  ctx.strokeStyle=C.deckStroke; ctx.lineWidth=1.5*z; ctx.strokeRect(padX,padY/2,carPx,cv.height-padY);
+  ctx.fillStyle=C.rail; ctx.fillRect(padX,padY-7*z,carPx,7*z); ctx.fillRect(padX,padY+n*(rowH+gap),carPx,7*z);
   for(let r=0;r<n;r++){
     const row=state.rows[r]||[], rowY=padY+r*(rowH+gap);
     const used=row.reduce((s,c)=>s+c.length,0), exact=used===TARGET;
-    ctx.fillStyle="#1a221a"; ctx.fillRect(padX,rowY,carPx,rowH);
-    ctx.strokeStyle="#2a3828"; ctx.lineWidth=.5; ctx.strokeRect(padX,rowY,carPx,rowH);
-    ctx.fillStyle=exact?"#5c9e44":used>TARGET?"#b84a3c":"#4a5e44";
+    ctx.fillStyle=C.rowBg; ctx.fillRect(padX,rowY,carPx,rowH);
+    ctx.strokeStyle=C.rowStroke; ctx.lineWidth=.5; ctx.strokeRect(padX,rowY,carPx,rowH);
+    ctx.fillStyle=exact?C.lblExact:used>TARGET?C.lblOver:C.lblNorm;
     ctx.font=`${Math.round(10*z)}px 'Segoe UI'`; ctx.textAlign="right"; ctx.textBaseline="middle";
     ctx.fillText("R"+(r+1),padX-4*z,rowY+rowH/2);
     let cur=0;
@@ -377,20 +392,20 @@ function render(){
       else if(pw>14*z){ ctx.fillStyle=GFONT[c.grade]||"#fff"; ctx.font=`bold ${Math.round(8*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(c.length+"'",px+pw/2,rowY+rowH/2); }
       cur+=c.length;
     }
-    if(exact){ ctx.fillStyle="#7bbf60"; ctx.fillRect(padX+carPx-2*z,rowY+3*z,2*z,rowH-6*z); }
-    if(!row.length){ ctx.fillStyle="rgba(255,255,255,.03)"; ctx.fillRect(padX,rowY+2*z,carPx,rowH-4*z);
-      ctx.fillStyle="#3a4a38"; ctx.font=`${Math.round(9*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("— empty —",padX+carPx/2,rowY+rowH/2); }
+    if(exact){ ctx.fillStyle=C.exactMark; ctx.fillRect(padX+carPx-2*z,rowY+3*z,2*z,rowH-6*z); }
+    if(!row.length){ ctx.fillStyle=C.emptyFill; ctx.fillRect(padX,rowY+2*z,carPx,rowH-4*z);
+      ctx.fillStyle=C.emptyText; ctx.font=`${Math.round(9*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("— empty —",padX+carPx/2,rowY+rowH/2); }
     if(row.length&&!exact&&used<TARGET){ const ew=(TARGET-used)*pxft, ex=padX+used*pxft;
       ctx.setLineDash([3*z,3*z]); ctx.strokeStyle="rgba(200,137,42,.4)"; ctx.lineWidth=1; ctx.strokeRect(ex,rowY+2*z,ew,rowH-4*z); ctx.setLineDash([]);
-      if(ew>16*z){ ctx.fillStyle="#c8892a"; ctx.font=`${Math.round(8*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("-"+(TARGET-used)+"'",ex+ew/2,rowY+rowH/2); } }
+      if(ew>16*z){ ctx.fillStyle=C.shortText; ctx.font=`${Math.round(8*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("-"+(TARGET-used)+"'",ex+ew/2,rowY+rowH/2); } }
   }
-  ctx.fillStyle="#8a9090"; ctx.fillRect(padX-7*z,cv.height-12*z,carPx+14*z,4*z);
-  ctx.strokeStyle="#4a5e44"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padX,padY-14*z); ctx.lineTo(padX+carPx,padY-14*z); ctx.stroke();
+  ctx.fillStyle=C.bottomRail; ctx.fillRect(padX-7*z,cv.height-12*z,carPx+14*z,4*z);
+  ctx.strokeStyle=C.rulerLine; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padX,padY-14*z); ctx.lineTo(padX+carPx,padY-14*z); ctx.stroke();
   const step=z<.5?10:z<.8?4:2;
   for(let ft=0;ft<=TARGET;ft+=step){ const tx=padX+ft*pxft;
     ctx.beginPath(); ctx.moveTo(tx,padY-18*z); ctx.lineTo(tx,padY-10*z); ctx.stroke();
-    ctx.fillStyle="#607858"; ctx.font=`${Math.round(9*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="bottom"; ctx.fillText(ft+"'",tx,padY-20*z); }
-  ctx.fillStyle="#8a9a82"; ctx.font=`bold ${Math.round(11*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="bottom";
+    ctx.fillStyle=C.tickText; ctx.font=`${Math.round(9*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="bottom"; ctx.fillText(ft+"'",tx,padY-20*z); }
+  ctx.fillStyle=C.titleText; ctx.font=`bold ${Math.round(11*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="bottom";
   ctx.fillText(`← 72 ft Centerbeam Car — ${n} Rows →`,padX+carPx/2,padY-22*z);
   const uL=new Set(),uP=new Set(),uG=new Set();
   state.rows.forEach(r=>r.forEach(c=>{uL.add(c.length);uP.add(c.product);uG.add(c.grade);}));
@@ -462,7 +477,7 @@ function renderManifest(){
   const sp=placedSummaryProduct(), sg=placedSummaryGrade();
   h+=`<div class="twocol">`;
   h+=`<div><div class="secttitle">Summary by Product</div><table class="t"><thead><tr><th>Product</th><th>Packs</th><th>Lineal Ft</th></tr></thead><tbody>`;
-  PRODUCTS.forEach(p=>{ if(sp[p].packs) h+=`<tr><td class="cell-pack" style="border-color:${PCOLORS[p]};color:#cfe0c8">${p}</td><td>${sp[p].packs}</td><td>${sp[p].lf}</td></tr>`; });
+  PRODUCTS.forEach(p=>{ if(sp[p].packs) h+=`<tr><td class="cell-pack" style="border-color:${PCOLORS[p]};color:#cfe0c8;background:#2b3126">${p}</td><td>${sp[p].packs}</td><td>${sp[p].lf}</td></tr>`; });
   h+=`</tbody></table></div>`;
   h+=`<div><div class="secttitle">Summary by Grade</div><table class="t"><thead><tr><th>Grade</th><th>Packs</th><th>Lineal Ft</th></tr></thead><tbody>`;
   GRADES.forEach(g=>{ if(sg[g].packs) h+=`<tr><td style="font-weight:700;color:${GFONT[g]};background:#333">${g}</td><td>${sg[g].packs}</td><td>${sg[g].lf}</td></tr>`; });
@@ -471,7 +486,7 @@ function renderManifest(){
   h+=`<div class="secttitle">Pick List — packs to pull for this car</div>`;
   h+=`<table class="t"><thead><tr><th>#</th><th>Product</th><th>Length</th><th>Grade</th><th>Packs to Pick</th></tr></thead><tbody>`;
   pl.forEach((c,i)=>{ h+=`<tr><td>${i+1}</td>
-    <td class="cell-pack" style="border-color:${PCOLORS[c.product]};color:#cfe0c8">${c.product}</td>
+    <td class="cell-pack" style="border-color:${PCOLORS[c.product]};color:#cfe0c8;background:#2b3126">${c.product}</td>
     <td style="color:#fff;background:${LCOLORS[c.length]};font-weight:700">${c.length} ft</td>
     <td style="font-weight:700;color:${GFONT[c.grade]};background:#333">${c.grade}</td>
     <td style="font-weight:700">${c.packs}</td></tr>`; });
@@ -505,7 +520,24 @@ function switchTab(t){
   document.getElementById("tab-"+t).classList.add("active");
   state.tab=t; if(t==="visual") zoomFit();
 }
-window.addEventListener("load",()=>{ init(); zoomFit(); });
+// ---------- theme ----------
+function applyTheme(t){
+  state.theme=(t==="light")?"light":"dark";
+  document.documentElement.setAttribute("data-theme",state.theme);
+  const b=document.getElementById("themeBtn");
+  if(b) b.textContent=(state.theme==="light")?"☀ Light":"🌙 Dark";
+}
+function initTheme(){
+  let s="dark"; try{ s=localStorage.getItem("clp-theme")||"dark"; }catch(e){}
+  applyTheme(s);
+}
+function toggleTheme(){
+  applyTheme(state.theme==="light"?"dark":"light");
+  try{ localStorage.setItem("clp-theme",state.theme); }catch(e){}
+  render();
+}
+
+window.addEventListener("load",()=>{ initTheme(); init(); zoomFit(); });
 window.addEventListener("resize",()=>{ if(state.tab==="visual") zoomFit(); });
 </script>
 </body>
