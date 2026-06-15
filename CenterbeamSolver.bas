@@ -300,6 +300,105 @@ Sub ClearAll()
         ws.Cells(r, 2).ClearContents: ws.Cells(r, 3).ClearContents
         ws.Cells(r, 4).ClearContents: ws.Cells(r, 5).ClearContents
     Next r
+    ApplySingleMode
     MsgBox "Cleared. Enter new line items, then click Solve.", vbInformation
+End Sub
+
+' ===== Single product/grade live behavior =====
+' When C7 = "Yes", the Product (col B) and Grade (col D) columns of the inventory are
+' disabled (greyed, no dropdown) and auto-filled from the Single Product/Grade box
+' (G5 = product, G6 = grade) for every line that has a Length or Packs entered.
+
+Public Sub ApplySingleMode()
+    On Error GoTo cleanup
+    Dim ws As Worksheet: Set ws = ThisWorkbook.Sheets("Planner")
+    Dim singleMode As Boolean
+    singleMode = (UCase(Trim(CStr(ws.Range("C7").Value))) = "YES")
+    Dim defP As String: defP = Trim(CStr(ws.Range("G5").Value))
+    Dim defG As String: defG = Trim(CStr(ws.Range("G6").Value))
+    Dim r As Long
+    Application.EnableEvents = False
+    If singleMode Then
+        For r = 10 To 29
+            If RowHasData(ws, r) Then
+                ws.Cells(r, 2).Value = defP
+                ws.Cells(r, 4).Value = defG
+            Else
+                ws.Cells(r, 2).ClearContents
+                ws.Cells(r, 4).ClearContents
+            End If
+        Next r
+        StyleInputCells ws.Range("B10:B29"), True
+        StyleInputCells ws.Range("D10:D29"), True
+        DropValidation ws.Range("B10:B29")
+        DropValidation ws.Range("D10:D29")
+    Else
+        StyleInputCells ws.Range("B10:B29"), False
+        StyleInputCells ws.Range("D10:D29"), False
+        AddListValidation ws.Range("B10:B29"), "2x4,2x6,2x8,2x10,4x4,4x6,6x6"
+        AddListValidation ws.Range("D10:D29"), "1,2,3,4,2P,MSR"
+    End If
+cleanup:
+    Application.EnableEvents = True
+End Sub
+
+Public Sub OnPlannerChange(ByVal Target As Range)
+    Dim ws As Worksheet: Set ws = ThisWorkbook.Sheets("Planner")
+    ' Toggle changed -> reconfigure (lock/unlock + auto-fill)
+    If Not Application.Intersect(Target, ws.Range("C7")) Is Nothing Then
+        ApplySingleMode
+        Exit Sub
+    End If
+    Dim singleMode As Boolean
+    singleMode = (UCase(Trim(CStr(ws.Range("C7").Value))) = "YES")
+    If Not singleMode Then Exit Sub
+    If Application.Intersect(Target, ws.Range("B10:E29,G5:G6")) Is Nothing Then Exit Sub
+    On Error GoTo cleanup
+    Dim defP As String: defP = Trim(CStr(ws.Range("G5").Value))
+    Dim defG As String: defG = Trim(CStr(ws.Range("G6").Value))
+    Dim r As Long
+    Application.EnableEvents = False
+    For r = 10 To 29
+        If RowHasData(ws, r) Then
+            If CStr(ws.Cells(r, 2).Value) <> defP Then ws.Cells(r, 2).Value = defP
+            If CStr(ws.Cells(r, 4).Value) <> defG Then ws.Cells(r, 4).Value = defG
+        Else
+            ws.Cells(r, 2).ClearContents
+            ws.Cells(r, 4).ClearContents
+        End If
+    Next r
+cleanup:
+    Application.EnableEvents = True
+End Sub
+
+Private Function RowHasData(ws As Worksheet, r As Long) As Boolean
+    RowHasData = (Trim(CStr(ws.Cells(r, 3).Value)) <> "") Or (Trim(CStr(ws.Cells(r, 5).Value)) <> "")
+End Function
+
+Private Sub StyleInputCells(rng As Range, disabled As Boolean)
+    If disabled Then
+        rng.Interior.Color = RGB(230, 230, 225)
+        rng.Font.Color = RGB(150, 150, 150)
+        rng.Font.Italic = True
+    Else
+        rng.Interior.Color = RGB(255, 255, 153)
+        rng.Font.Color = RGB(0, 0, 255)
+        rng.Font.Italic = False
+    End If
+End Sub
+
+Private Sub DropValidation(rng As Range)
+    On Error Resume Next
+    rng.Validation.Delete
+    On Error GoTo 0
+End Sub
+
+Private Sub AddListValidation(rng As Range, listStr As String)
+    On Error Resume Next
+    rng.Validation.Delete
+    On Error GoTo 0
+    rng.Validation.Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:=listStr
+    rng.Validation.IgnoreBlank = True
+    rng.Validation.InCellDropdown = True
 End Sub
 

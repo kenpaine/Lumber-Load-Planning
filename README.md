@@ -55,11 +55,13 @@ pack and drive the color scheme and the manifest breakdowns.
 1. Set **Number of Rows** (10 or 14).
 2. Choose how the car is loaded with the **Single product/grade?** toggle:
    - **Yes (single product/grade)** — most cars. Pick the **Product** and **Grade**
-     once in the *Single Product / Grade* box, then fill the inventory with just
-     **Length + Packs** on each line. On Solve, the blank Product/Grade cells are
-     filled in for you. (Any value you do type on a line is kept, so you can still
-     mix in the odd different pack.)
-   - **No (mixed)** — fill Product + Length + Grade + Packs on every line, as before.
+     once in the *Single Product / Grade* box. The Product and Grade columns in the
+     inventory are then **greyed out and filled in automatically** — you only enter
+     **Length + Packs** on each line. Changing the box updates every line instantly.
+   - **No (mixed)** — the Product and Grade columns become editable again; fill
+     Product + Length + Grade + Packs on every line, as before.
+
+   > Live behavior requires macros to be enabled (click *Enable Content* on open).
 3. Fill the **line‑item inventory** (dropdowns provided). Lineal ft, Placed, and
    Remaining compute automatically.
 4. The **Layout Grid** shows the load, one pack per slot, each row summing to 72 ft.
