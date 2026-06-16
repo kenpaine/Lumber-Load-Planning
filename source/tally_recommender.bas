@@ -195,6 +195,36 @@ cleanup:
     Application.EnableEvents = True
 End Sub
 
+Public Sub SortRecsBy(ByVal sortCol As Long)
+    ' Click a length header (8'..20') on the Recommender tab to sort the
+    ' recommended full-car tallies by that length, most first.
+    Dim ws As Worksheet: Set ws = ThisWorkbook.Worksheets(REC_SHEET)
+    Dim lastRow As Long: lastRow = REC_TOP - 1
+    Dim r As Long: r = REC_TOP
+    Do While r <= REC_MAX
+        If Len(CStr(ws.Cells(r, 1).Value)) = 0 Then Exit Do
+        lastRow = r: r = r + 1
+    Loop
+    If lastRow <= REC_TOP Then Exit Sub
+
+    On Error GoTo cleanup
+    Application.EnableEvents = False
+    With ws.Sort
+        .SortFields.Clear
+        .SortFields.Add Key:=ws.Range(ColL(CInt(sortCol)) & REC_TOP & ":" & ColL(CInt(sortCol)) & lastRow), _
+                        SortOn:=xlSortOnValues, Order:=xlDescending, DataOption:=xlSortNormal
+        .SetRange ws.Range("B" & REC_TOP & ":L" & lastRow)
+        .Header = xlNo
+        .Apply
+    End With
+    Dim k As Long
+    For k = REC_TOP To lastRow
+        ws.Cells(k, 1).Value = k - REC_TOP + 1
+    Next k
+cleanup:
+    Application.EnableEvents = True
+End Sub
+
 Private Sub BuildRecommendations(ws As Worksheet, L As Variant, sel() As Boolean, _
                                  patterns() As Variant, nPat As Long, carRows As Integer, mode As Integer)
     Dim r As Long: r = REC_TOP

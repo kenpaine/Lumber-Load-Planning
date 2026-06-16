@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Centerbeam Tally Recommender — 72 ft</title>
+<style>
+  :root{
+    --bg:#1a1f16;--bg2:#222820;--bg3:#2b3126;--border:#3d4a38;--border2:#4d5e47;
+    --text:#d8e4d2;--text2:#9aaa92;--text3:#6a7864;
+    --green:#5c9e44;--green2:#7bbf60;--green3:#3d7a28;--amber:#c8892a;--amber2:#e0a840;--red:#b84a3c;--red2:#d45e50;
+    --alert-ok-bg:#1a2e18;--alert-ok-bd:#2f5a22;--alert-warn-bg:#2e2010;--alert-warn-bd:#6a4400;
+  }
+  [data-theme="light"]{
+    --bg:#eaeee4;--bg2:#f5f7f1;--bg3:#ffffff;--border:#d3dccb;--border2:#bdc9b3;
+    --text:#283026;--text2:#566350;--text3:#84907c;
+    --green:#4e8c3a;--green2:#2f7d1f;--green3:#3d7a28;--amber:#b1771d;--amber2:#9c5e0c;--red:#b8463a;--red2:#bf3327;
+    --alert-ok-bg:#e4f3df;--alert-ok-bd:#bbe0ad;--alert-warn-bg:#fbf0d8;--alert-warn-bd:#e7d199;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+  header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;gap:16px;height:52px}
+  header h1{font-size:15px;font-weight:600;color:var(--green2);display:flex;align-items:center;gap:8px}
+  .sub{font-size:11px;color:var(--text3);margin-left:auto}
+  .theme-toggle{margin-left:14px;white-space:nowrap}
+  .app{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 52px)}
+  .sidebar{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+  .sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--text3);padding-bottom:5px;border-bottom:1px solid var(--border);margin-top:2px}
+  label{font-size:12px;color:var(--text2)}
+  select{width:100%;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;outline:none}
+  select:focus{border-color:var(--green)}
+  .btn{padding:7px 12px;border-radius:5px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:12px;cursor:pointer;font-weight:500;text-align:center}
+  .btn:hover{background:var(--border);border-color:var(--green);color:var(--green2)}
+  .btn.primary{background:var(--green3);border-color:var(--green);color:#d8f0d0}
+  .btn.primary:hover{background:var(--green);color:#fff}
+  .btn.danger{border-color:var(--red)}.btn.danger:hover{background:var(--red);color:#fff}
+  .brow{display:flex;gap:6px}.brow .btn{flex:1}
+  .palette{display:flex;flex-direction:column;gap:4px}
+  .prow{display:flex;align-items:center;gap:8px;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;cursor:pointer;user-select:none}
+  .prow:hover{border-color:var(--green)}
+  .prow input{width:15px;height:15px;accent-color:var(--green);cursor:pointer}
+  .lchip{display:inline-flex;align-items:center;justify-content:center;min-width:40px;padding:2px 8px;border-radius:3px;color:#33414f;font-weight:700;font-size:12px}
+  .prow .pname{font-size:12px;color:var(--text2)}
+  .alert{padding:8px 10px;border-radius:5px;font-size:11px;line-height:1.45}
+  .alert.ok{background:var(--alert-ok-bg);border:1px solid var(--alert-ok-bd);color:var(--green2)}
+  .alert.warn{background:var(--alert-warn-bg);border:1px solid var(--alert-warn-bd);color:var(--amber2)}
+  .hint{font-size:11px;color:var(--text3);line-height:1.5}
+  .legend{display:flex;flex-wrap:wrap;gap:5px}
+  .lswatch{font-size:10px;font-weight:700;color:#33414f;padding:2px 7px;border-radius:3px}
+  .main{display:flex;flex-direction:column;overflow:hidden}
+  .tabbar{display:flex;gap:1px;padding:0 14px;background:var(--bg2);border-bottom:1px solid var(--border)}
+  .tab{padding:8px 14px;font-size:12px;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;font-weight:500}
+  .tab.active{color:var(--green2);border-bottom-color:var(--green)}
+  .tab:hover:not(.active){color:var(--text2)}
+  .tc{display:none;flex:1;overflow:auto;padding:16px}.tc.active{display:block}
+  .secttitle{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--green2);margin:4px 0 10px}
+  .secttitle .note{font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)}
+  table.t{border-collapse:collapse;font-size:12px;margin-bottom:14px;width:max-content}
+  table.t th{background:var(--bg3);color:var(--text3);font-weight:600;text-transform:uppercase;font-size:9px;letter-spacing:.04em;padding:6px 8px;border:1px solid var(--border);text-align:center}
+  table.t td{padding:5px 8px;border:1px solid var(--border);text-align:center;white-space:nowrap}
+  th.sortable{cursor:pointer}
+  th.sortable:hover{outline:2px solid var(--green);outline-offset:-2px}
+  th.sorted::after{content:" ▼";font-size:8px}
+  .rowlbl{text-align:left!important;font-weight:600}
+  .muted{color:var(--text3)}
+  .okmark{color:var(--green2);font-weight:700}
+  .rinput{width:56px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:12px;text-align:center;outline:none}
+  .rinput:focus{border-color:var(--green)}
+  .totrow td{background:var(--bg3);font-weight:700;border-top:2px solid var(--green)}
+  .htext{font-size:13px;line-height:1.7;color:var(--text2);max-width:760px}
+  .htext h3{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--green2);margin:16px 0 6px}
+  .htext code{background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚃 Centerbeam Tally Recommender</h1>
+  <span class="sub">72 ft · choose lengths → loadable full-car tallies</span>
+  <button class="btn theme-toggle" id="themeBtn" onclick="toggleTheme()" title="Toggle light / dark mode">🌙 Dark</button>
+</header>
+
+<div class="app">
+  <div class="sidebar">
+    <div class="sec">Settings</div>
+    <div>
+      <label>Car size</label>
+      <select id="carSize" onchange="recommend()">
+        <option value="10">720 ft (10 rows)</option>
+        <option value="14">1008 ft (14 rows)</option>
+      </select>
+    </div>
+    <div>
+      <label>Match mode</label>
+      <select id="mode" onchange="onModeChange()">
+        <option value="1">Palette — use only selected</option>
+        <option value="2" selected>Each selected must appear</option>
+        <option value="3">Each must appear + fillers</option>
+      </select>
+    </div>
+
+    <div class="sec">Length Palette</div>
+    <div class="palette" id="palette"></div>
+
+    <div class="brow">
+      <button class="btn primary" onclick="recommend()">Recommend Tallies</button>
+      <button class="btn danger" onclick="clearOut()">Clear</button>
+    </div>
+    <div class="alert ok" id="status">Pick lengths and click Recommend Tallies.</div>
+    <div class="hint" id="modeHint"></div>
+
+    <div class="sec">Length Colors</div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="main">
+    <div class="tabbar">
+      <div class="tab active" data-tab="recs" onclick="switchTab('recs')">Recommended Tallies</div>
+      <div class="tab" data-tab="patterns" onclick="switchTab('patterns')">Row Patterns</div>
+      <div class="tab" data-tab="help" onclick="switchTab('help')">How to Use</div>
+    </div>
+    <div class="tc active" id="tab-recs"><div id="recsBox"></div></div>
+    <div class="tc" id="tab-patterns"><div id="patBox"></div></div>
+    <div class="tc" id="tab-help"><div class="htext" id="helpBox"></div></div>
+  </div>
+</div>
+
+<script>
+// ===== Centerbeam 72-ft Car — Tally Recommender (browser port of the .xlsm) =====
+const LENGTHS=[8,10,12,14,16,18,20];
+const LCOLORS={8:"#BBD4EA",10:"#C2E5C9",12:"#FBE7B2",14:"#E5CDEE",16:"#FAC4BC",18:"#BFEAE0",20:"#DCE7AE"};
+const INK="#33414f";
+const TARGET=72, MAX_RECS=15;
+const MODE_TEXT={
+  1:"Palette: tallies are built only from the lengths you check.",
+  2:"Each selected must appear: every checked length shows up somewhere in the car.",
+  3:"Each must appear + fillers: every checked length appears; other lengths may finish a row."
+};
+
+let state={
+  theme:"dark", tab:"recs",
+  selected:new Set([16,20]),
+  patterns:[],     // array of count objects {8:n,...}
+  recs:[],         // {label, counts, pcs, ft, ok}
+  recSort:null,    // length to sort recs by (desc), or null = default order
+  patSort:null,    // length to sort patterns by
+  handBuild:{}     // patternIndex -> rows to use
+};
+
+// ---- enumerate every multiset of allowed lengths that sums to 72 ----
+function enumPatterns(allowed){
+  const types=allowed.slice().sort((a,b)=>b-a);
+  const out=[];
+  (function rec(i,rem,cur){
+    if(rem===0){ out.push(cur.slice()); return; }
+    if(i>=types.length) return;
+    const t=types[i];
+    for(let n=Math.floor(rem/t); n>=0; n--){
+      const nc=cur.slice(); for(let k=0;k<n;k++) nc.push(t);
+      rec(i+1, rem-t*n, nc);
+    }
+  })(0,TARGET,[]);
+  return out.map(arr=>{ const c={}; LENGTHS.forEach(L=>c[L]=0); arr.forEach(x=>c[x]++); return c; });
+}
+function rowLabel(c){ const p=[]; LENGTHS.forEach(L=>{ if(c[L]>0) p.push(c[L]+"x"+L); }); return p.join(", "); }
+function pcsOf(c){ let s=0; LENGTHS.forEach(L=>s+=c[L]); return s; }
+function ftOf(c){ let s=0; LENGTHS.forEach(L=>s+=c[L]*L); return s; }
+function carCovers(a,b,sel,mode){
+  if(mode===1) return true;
+  for(const L of sel){ if((a[L]||0)===0 && (b[L]||0)===0) return false; }
+  return true;
+}
+
+// ---- main recommend (mirrors RecommendTallies / BuildRecommendations) ----
+function recommend(){
+  const sel=[...state.selected].sort((a,b)=>a-b);
+  const mode=+document.getElementById("mode").value;
+  const carRows=+document.getElementById("carSize").value;
+  state.handBuild={};
+
+  if(sel.length===0){
+    state.patterns=[]; state.recs=[];
+    setStatus("warn","Check at least one length box, then click Recommend Tallies.");
+    return render();
+  }
+  const allowed=(mode===3)?LENGTHS.slice():sel.slice();
+  const patterns=enumPatterns(allowed);
+  state.patterns=patterns;
+  if(patterns.length===0){
+    state.recs=[];
+    setStatus("warn","No 72-ft row can be built from those lengths. Add another length and try again.");
+    return render();
+  }
+
+  const selSet=new Set(sel);
+  const recs=[];
+  // single-pattern cars (all rows the same)
+  for(const p of patterns){
+    if(recs.length>=MAX_RECS) break;
+    if(carCovers(p,p,selSet,mode)){
+      const counts={}; LENGTHS.forEach(L=>counts[L]=p[L]*carRows);
+      recs.push(makeRec("All "+carRows+" rows:  "+rowLabel(p), counts, carRows));
+    }
+  }
+  // two-pattern blends (modes 2 and 3)
+  if(mode>=2){
+    outer:
+    for(let i=0;i<patterns.length;i++){
+      for(let j=i+1;j<patterns.length;j++){
+        if(recs.length>=MAX_RECS) break outer;
+        const a=patterns[i], b=patterns[j];
+        if(carCovers(a,b,selSet,mode)){
+          let na=Math.floor(carRows/2); if(na<1)na=1; const nb=carRows-na;
+          const counts={}; LENGTHS.forEach(L=>counts[L]=a[L]*na+b[L]*nb);
+          recs.push(makeRec(na+" rows ("+rowLabel(a)+")  +  "+nb+" rows ("+rowLabel(b)+")", counts, carRows));
+        }
+      }
+    }
+  }
+  state.recs=recs;
+
+  const carFt=carRows*72;
+  if(recs.length===0){
+    setStatus("warn","No single- or two-pattern car covers every selected length. Add a length, try ‘Palette’ mode, or hand-build on the Row Patterns tab.  ("+patterns.length+" row patterns found.)");
+  }else{
+    setStatus("ok", recs.length+" tally(ies) recommended for a "+carFt+"-ft car ("+carRows+" rows).  "+patterns.length+" valid 72-ft row patterns are on the Row Patterns tab.");
+  }
+  render();
+}
+function makeRec(label,counts,carRows){ const ft=ftOf(counts); return {label,counts,pcs:pcsOf(counts),ft,ok:ft===carRows*72}; }
+
+function setStatus(kind,msg){ const s=document.getElementById("status"); s.className="alert "+(kind==="ok"?"ok":"warn"); s.textContent=msg; }
+function clearOut(){
+  state.patterns=[]; state.recs=[]; state.recSort=null; state.patSort=null; state.handBuild={};
+  setStatus("ok","Cleared. Choose options and click Recommend Tallies.");
+  render();
+}
+
+// ---- rendering ----
+function lenHeaders(kind){
+  return LENGTHS.map(L=>{
+    const isSorted=(kind==="rec"&&state.recSort===L)||(kind==="pat"&&state.patSort===L);
+    return `<th class="sortable${isSorted?" sorted":""}" style="background:${LCOLORS[L]};color:${INK}" onclick="sortBy('${kind}',${L})">${L}'</th>`;
+  }).join("");
+}
+function lenCell(v,L){ return `<td style="${v?`background:${LCOLORS[L]};color:${INK};font-weight:700`:""}">${v||""}</td>`; }
+
+function renderRecs(){
+  const box=document.getElementById("recsBox");
+  if(state.recs.length===0){
+    box.innerHTML=`<div class="secttitle">Recommended Full-Car Tallies</div><div class="muted">No recommendations yet — pick lengths and click <b>Recommend Tallies</b>.</div>`;
+    return;
+  }
+  let rows=state.recs.slice();
+  if(state.recSort!=null) rows.sort((a,b)=>(b.counts[state.recSort]||0)-(a.counts[state.recSort]||0));
+  let h=`<div class="secttitle">Recommended Full-Car Tallies <span class="note">(click a length header to sort)</span></div>`;
+  h+=`<table class="t"><thead><tr><th>#</th><th>Tally (how to load the car)</th>${lenHeaders("rec")}<th>Total pcs</th><th>Total ft</th><th>OK?</th></tr></thead><tbody>`;
+  rows.forEach((r,i)=>{
+    h+=`<tr><td>${i+1}</td><td class="rowlbl">${r.label}</td>`;
+    LENGTHS.forEach(L=>h+=lenCell(r.counts[L],L));
+    h+=`<td>${r.pcs}</td><td>${r.ft}</td><td class="okmark">${r.ok?"OK":"check"}</td></tr>`;
+  });
+  box.innerHTML=h+`</tbody></table>`;
+}
+
+function renderPatterns(){
+  const box=document.getElementById("patBox");
+  if(state.patterns.length===0){
+    box.innerHTML=`<div class="secttitle">Valid 72-ft Row Patterns</div><div class="muted">No patterns yet — pick lengths and click <b>Recommend Tallies</b>.</div>`;
+    return;
+  }
+  let rows=state.patterns.map((c,i)=>({c,i}));
+  if(state.patSort!=null) rows.sort((a,b)=>(b.c[state.patSort]||0)-(a.c[state.patSort]||0));
+  let h=`<div class="secttitle">Valid 72-ft Row Patterns <span class="note">(building blocks — click a length header to sort; type Rows to use to hand-build a car)</span></div>`;
+  h+=`<table class="t"><thead><tr><th>#</th><th>Row = 72 ft</th>${lenHeaders("pat")}<th>Rows to use</th></tr></thead><tbody>`;
+  rows.forEach((o,i)=>{
+    h+=`<tr><td>${i+1}</td><td class="rowlbl">${rowLabel(o.c)}</td>`;
+    LENGTHS.forEach(L=>h+=lenCell(o.c[L],L));
+    h+=`<td><input class="rinput" type="number" min="0" value="${state.handBuild[o.i]||""}" oninput="setRows(${o.i},this.value)"></td></tr>`;
+  });
+  // hand-build total row
+  h+=`<tr class="totrow"><td></td><td class="rowlbl">YOUR HAND-BUILT TALLY</td>`;
+  LENGTHS.forEach(L=>h+=`<td id="tot-${L}"></td>`);
+  h+=`<td id="tot-rows">0 rows</td></tr>`;
+  box.innerHTML=h+`</tbody></table>`;
+  updateHandTotal();
+}
+function setRows(idx,val){
+  const n=parseInt(val,10);
+  if(!val||isNaN(n)||n<=0) delete state.handBuild[idx]; else state.handBuild[idx]=n;
+  updateHandTotal();
+}
+function updateHandTotal(){
+  const tot={}; LENGTHS.forEach(L=>tot[L]=0); let rows=0;
+  state.patterns.forEach((c,i)=>{ const n=+state.handBuild[i]||0; if(n>0){ rows+=n; LENGTHS.forEach(L=>tot[L]+=c[L]*n); } });
+  LENGTHS.forEach(L=>{ const el=document.getElementById("tot-"+L); if(el) el.textContent=tot[L]||""; });
+  const r=document.getElementById("tot-rows"); if(r) r.textContent=rows+" rows";
+}
+
+function sortBy(kind,L){
+  if(kind==="rec") state.recSort=(state.recSort===L)?null:L;
+  else state.patSort=(state.patSort===L)?null:L;
+  render();
+}
+function render(){ renderRecs(); renderPatterns(); }
+
+function renderPalette(){
+  document.getElementById("palette").innerHTML=LENGTHS.map(L=>{
+    const on=state.selected.has(L)?"checked":"";
+    return `<label class="prow"><input type="checkbox" ${on} onchange="toggleLen(${L},this.checked)"><span class="lchip" style="background:${LCOLORS[L]}">${L}'</span><span class="pname">${L} ft</span></label>`;
+  }).join("");
+}
+function toggleLen(L,on){ if(on) state.selected.add(L); else state.selected.delete(L); recommend(); }
+function onModeChange(){ document.getElementById("modeHint").textContent=MODE_TEXT[+document.getElementById("mode").value]; recommend(); }
+function renderLegend(){ document.getElementById("legend").innerHTML=LENGTHS.map(L=>`<span class="lswatch" style="background:${LCOLORS[L]}">${L}'</span>`).join(""); }
+
+function renderHelp(){
+  document.getElementById("helpBox").innerHTML=`
+    <div class="secttitle">Centerbeam 72-ft Car — Tally Recommender</div>
+    <p>A 72-ft centerbeam car loads in rows; every row must fill end-to-end to <b>exactly 72 ft</b>. This finds the length combinations that fill a 72-ft row, then recommends complete car tallies (720 ft = 10 rows, or 1008 ft = 14 rows) from the lengths you choose.</p>
+    <h3>How to use</h3>
+    <p>1.&nbsp; Pick <b>Car size</b> (720 or 1008 ft).<br>
+    2.&nbsp; Pick a <b>Match mode</b> — <code>Palette</code> builds only from checked lengths; <code>Each selected must appear</code> makes every checked length show up in the car; <code>Each must appear + fillers</code> lets other lengths finish a row.<br>
+    3.&nbsp; Check the lengths you want in the <b>Length Palette</b>.<br>
+    4.&nbsp; Read the <b>Recommended Tallies</b> (it updates as you change options).</p>
+    <h3>Recommended Tallies</h3>
+    <p>Each row is a ready-to-load car: the piece count per length, total pieces, total feet (always rows × 72), and an OK check. <b>Click any length column header</b> to sort by that length, most first.</p>
+    <h3>Row Patterns</h3>
+    <p>Every way to fill a single 72-ft row from your lengths. Click a length header to sort. To hand-build a mixed car, type how many <b>Rows to use</b> of each pattern; the <b>YOUR HAND-BUILT TALLY</b> line totals the pieces per length and the row count — make the rows match your car size (10 or 14).</p>
+    <h3>Notes</h3>
+    <p>Only length controls the 72-ft fit; product and grade aren't part of this tool. Up to 15 recommendations and 101 row patterns are listed. This page runs entirely in your browser — nothing is uploaded, and there are no macros or security prompts.</p>
+  `;
+}
+
+// ---- tabs / theme ----
+function switchTab(t){
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.tab===t));
+  document.querySelectorAll(".tc").forEach(x=>x.classList.remove("active"));
+  document.getElementById("tab-"+t).classList.add("active");
+  state.tab=t;
+}
+function applyTheme(t){
+  state.theme=(t==="light")?"light":"dark";
+  document.documentElement.setAttribute("data-theme",state.theme);
+  const b=document.getElementById("themeBtn"); if(b) b.textContent=(state.theme==="light")?"☀ Light":"🌙 Dark";
+}
+function initTheme(){ let s="dark"; try{ s=localStorage.getItem("ctr-theme")||"dark"; }catch(e){} applyTheme(s); }
+function toggleTheme(){ applyTheme(state.theme==="light"?"dark":"light"); try{ localStorage.setItem("ctr-theme",state.theme); }catch(e){} }
+
+window.addEventListener("load",()=>{
+  initTheme(); renderPalette(); renderLegend(); renderHelp();
+  document.getElementById("modeHint").textContent=MODE_TEXT[+document.getElementById("mode").value];
+  recommend();  // seed an example on open
+});
+</script>
+</body>
+</html>
