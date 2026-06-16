@@ -98,7 +98,7 @@ def list_validation(ws, addr, items):
 
 
 def setup_grid(ws):
-    widths = {"A": 11, "B": 42, "C": 6, "D": 6, "E": 6, "F": 6, "G": 6, "H": 6,
+    widths = {"A": 8, "B": 42, "C": 6, "D": 6, "E": 6, "F": 6, "G": 6, "H": 6,
               "I": 6, "J": 10, "K": 9, "L": 13}
     for col, w in widths.items():
         ws.column_dimensions[col].width = w
@@ -107,6 +107,16 @@ def setup_grid(ws):
 def color_length_headers(ws, row):
     for i, col in enumerate(LEN_COLS):
         ws["%s%d" % (col, row)].fill = solid(LC[i])
+
+
+def fmt_block(ws, rng, numfmt=None):
+    """Center a block (and optionally apply an integer number format) so the
+    count/total columns read consistently across the sheet."""
+    for row in ws[rng]:
+        for c in row:
+            c.alignment = Alignment(horizontal=CENTER, vertical="center")
+            if numfmt:
+                c.number_format = numfmt
 
 
 # ----------------------------------------------------------------------------
@@ -140,14 +150,15 @@ def build_layout(path):
     list_validation(rec, "B6", "Palette - use only selected,Each selected must appear,Each must appear + fillers")
 
     banner(rec, "A9:B9", "LENGTH PALETTE", fill=HDRLT, bold=True)
-    put(rec, "A10", "Length (ft)", bold=True)
-    put(rec, "B10", "Include?", bold=True)
-    defaults_yes = {15, 17}  # rows for 16' and 20'
+    put(rec, "A10", "Length", bold=True, align=CENTER)
+    put(rec, "B10", "Include?  (check the box)", bold=True)
     for i, n in enumerate(LEN_NUMS):
         row = 11 + i
         put(rec, "A%d" % row, n, bold=True, fill=LC[i], align=CENTER)
-        put(rec, "B%d" % row, "Yes" if row in defaults_yes else "No", align=CENTER)
-        list_validation(rec, "B%d" % row, "Yes,No")
+        # A Form Control checkbox (added in the COM stage) links to this cell as
+        # TRUE/FALSE; the ';;;' number format hides that text so only the box shows.
+        cb = put(rec, "B%d" % row, None, align=LEFT)
+        cb.number_format = ";;;"
 
     put(rec, "A19", "Status:", bold=True)
     banner(rec, "B19:L19", "", fill=STATUSF)
@@ -168,15 +179,16 @@ def build_layout(path):
     # ---- Row Patterns ----
     pat = wb.create_sheet("Row Patterns")
     setup_grid(pat)
-    banner(pat, "A1:L1",
+    banner(pat, "A1:J1",
            "VALID 72-FT ROW PATTERNS  -  building blocks  (set 'Rows to use' to hand-build; click a length header 8'-20' to sort)",
            fill=NAVY, color=WHITE, bold=True)
     pat.row_dimensions[1].height = 22
     pat_hdr = ["#", "Row = 72 ft", "8'", "10'", "12'", "14'", "16'", "18'", "20'",
-               "Pcs", "Ft", "Rows to use"]
+               "Rows to use"]
     for c, txt in zip(COLS, pat_hdr):
         put(pat, "%s2" % c, txt, bold=True, fill=HDRLT)
     color_length_headers(pat, 2)
+    pat.column_dimensions["J"].width = 12   # 'Rows to use' moved here (Pcs/Ft removed)
     pat.freeze_panes = "A3"   # <-- freeze the two header rows (one clean line)
 
     # ---- How to Use ----
@@ -201,7 +213,7 @@ def build_layout(path):
         "       - Palette - use only selected: tallies are built only from the lengths you turn on.",
         "       - Each selected must appear: every length you turn on must show up somewhere in the car.",
         "       - Each must appear + fillers: every selected length appears, other lengths may finish a row.",
-        "3.  Length palette: set Include? = Yes for each length you want; No to leave it out.",
+        "3.  Length palette: check the box for each length you want; clear it to leave that length out.",
         "4.  Click Recommend Tallies.",
         "",
         "RECOMMENDED FULL-CAR TALLIES (Recommender tab)",
@@ -213,12 +225,12 @@ def build_layout(path):
         "Every way to fill a single 72-ft row from your lengths. The two header rows stay frozen at the top as",
         "you scroll. Click a length column header (8 ft ... 20 ft) to sort the patterns by that length, most",
         "first. To hand-build a mixed car, type how many rows of each pattern in the Rows to use column; the",
-        "YOUR HAND-BUILT TALLY line (directly below the last pattern) totals the pieces and rows. Make the rows",
-        "total match your car size (10 or 14).",
+        "YOUR HAND-BUILT TALLY line (directly below the last pattern) totals the pieces per length and the",
+        "row count. Make the row count match your car size (10 or 14).",
         "",
         "NOTES",
         "-  Only length controls the 72-ft fit; product and grade are not part of this tool.",
-        "-  Click Enable Content when you open the file so the buttons and sorting work.",
+        "-  Click Enable Content when you open the file so the buttons, checkboxes and sorting work.",
         "-  Up to 15 recommendations and up to 101 row patterns are listed.",
     ]
     for i, text in enumerate(lines):
@@ -227,6 +239,14 @@ def build_layout(path):
     put(how, "A1", lines[0], bold=True, size=14, color=NAVY)
     for r in (3, 8, 13, 22, 27, 34):
         put(how, "A%d" % r, lines[r - 1], bold=True, color=NAVY)
+
+    # ---- consolidate numeric formatting across the data blocks ----
+    # (count + total columns centered as integers; runtime VBA writes preserve it)
+    fmt_block(rec, "A23:A37", "0")
+    fmt_block(rec, "C23:K37", "0")
+    fmt_block(rec, "L23:L37")            # OK? is text, just center it
+    fmt_block(pat, "A3:A103", "0")
+    fmt_block(pat, "C3:J103", "0")       # lengths (C-I) + Rows to use (J)
 
     wb.save(path)
 
@@ -288,7 +308,22 @@ def inject_macros(src_xlsx, out_xlsm):
         b2 = rec.Buttons().Add(rec.Range("D6").Left, rec.Range("D6").Top, 90, 24)
         b2.Caption = "Clear"
         b2.OnAction = "ClearOutputsButton"
-        print("      .. buttons added; seeding (Run)", flush=True)
+        print("      .. buttons added; adding palette checkboxes", flush=True)
+
+        # length-palette checkboxes (replace the old Yes/No dropdowns). Each links
+        # to its B cell as TRUE/FALSE; the ';;;' format from the layout stage hides
+        # the text so only the box shows next to the colored length chip in col A.
+        xl_on, xl_off = 1, -4146
+        default_checked = {16, 20}
+        for i, n in enumerate(LEN_NUMS):
+            row = 11 + i
+            cell = rec.Range("B%d" % row)
+            cb = rec.CheckBoxes().Add(cell.Left + 2, cell.Top + 1, 16, 13)
+            cb.Caption = ""
+            cb.LinkedCell = "$B$%d" % row
+            cb.Value = xl_on if n in default_checked else xl_off
+            cell.Value = (n in default_checked)
+        print("      .. checkboxes added; seeding (Run)", flush=True)
 
         # seed an example run so the file is populated on open
         rec.Activate()
