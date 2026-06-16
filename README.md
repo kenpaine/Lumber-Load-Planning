@@ -2,6 +2,8 @@
 
 [![Latest release](https://img.shields.io/github/v/release/kenpaine/Lumber-Load-Planning?label=download&color=2f7d1f)](https://github.com/kenpaine/Lumber-Load-Planning/releases/latest) &nbsp;**[⬇ Download the tools](https://github.com/kenpaine/Lumber-Load-Planning/releases/latest)** — ready‑to‑use Excel workbooks + no‑install browser apps, no build step.
 
+▶ **Open in your browser (no install):** [Tally Recommender](https://kenpaine.github.io/Lumber-Load-Planning/centerbeam_tally_recommender.html) · [Layout Planner](https://kenpaine.github.io/Lumber-Load-Planning/centerbeam_layout_planner.html) — runs on any phone or desktop.
+
 Two tools for loading **72‑ft centerbeam rail cars** with dimensional lumber, where every
 car row must fill end‑to‑end to **exactly 72 ft**:
 
@@ -25,6 +27,8 @@ Full‑featured app: line‑item inventory, **single or mixed product/grade**, t
 column‑stacking solver, a proportional visual car layout, Row Detail, a printable
 Manifest with pick list, the Pattern Library, and a light/dark theme.
 
+▶ **[Open it live](https://kenpaine.github.io/Lumber-Load-Planning/centerbeam_layout_planner.html)** — phone or desktop.
+
 ![Centerbeam Lumber Layout Planner — browser app](html_app_screenshot.png)
 
 ### Excel workbook — `Centerbeam_Lumber_Layout_Planner.xlsm`
@@ -47,6 +51,8 @@ Pick the lengths you want and the tool recommends **complete, loadable full‑ca
 No install, no macros, no security prompts — open it in any browser. The full engine: the
 checkbox length palette, all three match modes, both car sizes, click‑to‑sort tables, and a
 live hand‑build total. Light / dark theme.
+
+▶ **[Open it live](https://kenpaine.github.io/Lumber-Load-Planning/centerbeam_tally_recommender.html)** — phone or desktop.
 
 ![Centerbeam Tally Recommender — browser app](tally_html_screenshot.png)
 
