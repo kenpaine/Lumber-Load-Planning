@@ -70,6 +70,35 @@
   .htext{font-size:13px;line-height:1.7;color:var(--text2);max-width:760px}
   .htext h3{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--green2);margin:16px 0 6px}
   .htext code{background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:12px}
+
+  /* ---- Responsive: stack to a single column on phones (≤768px) ---- */
+  @media (max-width:768px){
+    header{position:sticky;top:0;z-index:30;padding:0 12px;gap:8px}
+    header h1{font-size:14px}
+    .sub{display:none}
+    .theme-toggle{margin-left:auto}
+    .app{grid-template-columns:1fr;height:auto}            /* sidebar on top, results below */
+    .sidebar{border-right:none;border-bottom:1px solid var(--border);overflow:visible;height:auto;padding:12px;min-width:0}
+    .main{overflow:visible;min-width:0}                    /* min-width:0 = wide tables scroll inside, don't widen the page */
+    .tabbar{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .tab{flex:0 0 auto;white-space:nowrap;padding:10px 13px}
+    .tc{flex:none;padding:12px;-webkit-overflow-scrolling:touch}
+    table.t{width:auto;max-width:100%}                     /* fit the column, not max-content */
+    table.t th{white-space:normal}                         /* wrap "Total pcs" headers = narrower number columns */
+    .brow .btn{min-width:0}
+    /* ≥16px controls stop iOS Safari from zoom‑jumping on focus (what made the size picker feel unusable) */
+    select{font-size:16px;padding:9px 10px}
+    .rinput{font-size:16px;width:60px;padding:6px}
+    .btn{padding:11px 12px;font-size:13px}
+    .palette{display:grid;grid-template-columns:1fr 1fr;gap:6px}   /* two roomy toggles per row */
+    .prow{padding:9px 10px}
+    .prow input{width:20px;height:20px}
+    .prow .pname{font-size:13px}
+    .lchip{font-size:13px;min-width:44px}
+    label{font-size:13px}
+    .alert,.hint{font-size:12px}
+    td.rowlbl{white-space:normal;min-width:140px;max-width:220px}  /* wrap long tally labels */
+  }
 </style>
 </head>
 <body>
