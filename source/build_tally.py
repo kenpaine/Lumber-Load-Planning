@@ -20,8 +20,9 @@ Run (use the REAL interpreter -- on Windows a bare `python` may resolve to the
 Microsoft Store stub; use the full path to the python.org install):
   "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" source\build_tally.py
 
-Note: make sure no headless EXCEL.EXE is already running before building -- a
-stale COM instance can make the pywin32 pass hang.
+Note: the COM pass uses DispatchEx (its own isolated Excel instance), so a
+running Excel won't be hijacked -- but the output .xlsm must be CLOSED in every
+Excel window or the final SaveAs fails with a file lock.
 """
 
 import os
@@ -51,6 +52,12 @@ COLS = list("ABCDEFGHIJKL")
 LEN_COLS = list("CDEFGHI")  # the 8'..20' columns
 
 LEFT, CENTER, RIGHT = "left", "center", "right"
+
+
+def bgr(hex_):
+    """RRGGBB hex -> the BGR integer Excel COM expects for .RGB / .Color."""
+    r, g, b = int(hex_[0:2], 16), int(hex_[2:4], 16), int(hex_[4:6], 16)
+    return r + (g << 8) + (b << 16)
 
 
 def font(bold=False, italic=False, size=11, color=INK):
@@ -272,7 +279,11 @@ def inject_macros(src_xlsx, out_xlsm):
     with open(BAS, "r", encoding="utf-8") as fh:
         module_code = "\r\n".join(fh.read().splitlines())
 
-    excel = win32.Dispatch("Excel.Application")
+    # DispatchEx forces a NEW, isolated Excel instance instead of attaching to one
+    # the user already has open (plain Dispatch would, and our Quit() would then
+    # close their session). The output .xlsm must still be closed everywhere or
+    # SaveAs hits a file lock.
+    excel = win32.DispatchEx("Excel.Application")
     excel.Visible = False
     excel.DisplayAlerts = False
     try:
@@ -298,16 +309,39 @@ def inject_macros(src_xlsx, out_xlsm):
         wb.VBProject.VBComponents(ws2.CodeName).CodeModule.AddFromString(SHEET_EVENT)
         print("      .. event added; adding buttons", flush=True)
 
-        # macro buttons on the Recommender sheet
+        # macro buttons on the Recommender sheet. Form Control buttons can't be
+        # colored, so use rounded-rectangle shapes (same click->macro behavior via
+        # OnAction) styled to the workbook scheme and laid out side by side.
         rec = wb.Worksheets("Recommender")
-        b1 = rec.Buttons().Add(rec.Range("D4").Left, rec.Range("D4").Top, 160, 30)
-        b1.Caption = "Recommend Tallies"
-        b1.OnAction = "RecommendTallies"
-        b1.Font.Size = 11
-        b1.Font.Bold = True
-        b2 = rec.Buttons().Add(rec.Range("D6").Left, rec.Range("D6").Top, 90, 24)
-        b2.Caption = "Clear"
-        b2.OnAction = "ClearOutputsButton"
+        MSO_ROUNDED_RECT = 5
+        XL_CENTER = -4108  # xlHAlign/ xlVAlign Center
+
+        def make_button(caption, macro, left, top, width, height,
+                        fill_hex, text_hex, border_hex=None):
+            shp = rec.Shapes.AddShape(MSO_ROUNDED_RECT, left, top, width, height)
+            shp.Fill.Solid()
+            shp.Fill.ForeColor.RGB = bgr(fill_hex)
+            if border_hex:
+                shp.Line.ForeColor.RGB = bgr(border_hex)
+                shp.Line.Weight = 1.25
+            else:
+                shp.Line.Visible = False
+            tf = shp.TextFrame
+            tf.Characters().Text = caption
+            tf.Characters().Font.Bold = True
+            tf.Characters().Font.Size = 11
+            tf.Characters().Font.Color = bgr(text_hex)
+            tf.HorizontalAlignment = XL_CENTER
+            tf.VerticalAlignment = XL_CENTER
+            shp.OnAction = macro
+            return shp
+
+        top = rec.Range("D4").Top
+        left = rec.Range("D4").Left
+        make_button("Recommend Tallies", "RecommendTallies",
+                    left, top, 150, 34, NAVY, WHITE)               # navy primary
+        make_button("Clear", "ClearOutputsButton",
+                    left + 160, top, 90, 34, HDRLT, INK, NAVY)     # light secondary
         print("      .. buttons added; adding palette checkboxes", flush=True)
 
         # length-palette checkboxes (replace the old Yes/No dropdowns). Each links
