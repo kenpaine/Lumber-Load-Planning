@@ -148,7 +148,7 @@ def build_layout(path):
     put(rec, "A5", "Car size:", bold=True, align=RIGHT)
     put(rec, "B5", "720 ft (10 rows)")
     put(rec, "A6", "Match mode:", bold=True, align=RIGHT)
-    put(rec, "B6", "Palette - use only selected")
+    put(rec, "B6", "Each selected must appear")   # default match mode (mode 2)
     banner(rec, "A7:L7",
            "Palette = use only these lengths   /   Each must appear = every picked length shows up in the car   /   + fillers = may add other lengths to finish a 72-ft row",
            italic=True, size=9)
@@ -172,7 +172,8 @@ def build_layout(path):
     rec["B19"].alignment = Alignment(horizontal=LEFT, vertical="center", wrap_text=True)
     rec.row_dimensions[19].height = 28
 
-    banner(rec, "A21:L21", "RECOMMENDED FULL-CAR TALLIES", fill=NAVY, color=WHITE, bold=True)
+    banner(rec, "A21:L21", "RECOMMENDED FULL-CAR TALLIES   (click a length header 8'-20' to sort)",
+           fill=NAVY, color=WHITE, bold=True)
     rec_hdr = ["#", "Tally (how to load the car)", "8'", "10'", "12'", "14'", "16'",
                "18'", "20'", "Total pcs", "Total ft", "OK?"]
     for c, txt in zip(COLS, rec_hdr):
@@ -270,6 +271,17 @@ SHEET_EVENT = "\r\n".join([
     "End Sub",
 ])
 
+# Same click-to-sort idea on the Recommender tab: the recommendations header is
+# row 22, length columns C-I (3..9).
+REC_EVENT = "\r\n".join([
+    "Private Sub Worksheet_SelectionChange(ByVal Target As Range)",
+    "    If Target.Cells.Count <> 1 Then Exit Sub",
+    "    If Target.Row = 22 And Target.Column >= 3 And Target.Column <= 9 Then",
+    "        SortRecsBy Target.Column",
+    "    End If",
+    "End Sub",
+])
+
 XL_MACRO_ENABLED = 52  # xlOpenXMLWorkbookMacroEnabled
 
 
@@ -307,7 +319,10 @@ def inject_macros(src_xlsx, out_xlsm):
         # sheet click-to-sort event on the Row Patterns sheet
         ws2 = wb.Worksheets("Row Patterns")
         wb.VBProject.VBComponents(ws2.CodeName).CodeModule.AddFromString(SHEET_EVENT)
-        print("      .. event added; adding buttons", flush=True)
+        # same click-to-sort on the Recommender tab's recommendations table (row 22)
+        rec_ws = wb.Worksheets("Recommender")
+        wb.VBProject.VBComponents(rec_ws.CodeName).CodeModule.AddFromString(REC_EVENT)
+        print("      .. events added; adding buttons", flush=True)
 
         # macro buttons on the Recommender sheet. Form Control buttons can't be
         # colored, so use rounded-rectangle shapes (same click->macro behavior via
