@@ -1,9 +1,0 @@
-# Code owners for Lumber-Load-Planning
-#
-# The repository owner must review and approve every change before it can be
-# merged into the protected `master` branch. The `*` pattern matches all files,
-# so any pull request touching anything requires @kenpaine's approval.
-#
-# This is enforced by branch protection ("Require review from Code Owners").
-
-*       @kenpaine
