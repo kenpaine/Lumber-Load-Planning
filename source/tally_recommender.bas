@@ -45,16 +45,20 @@ Public Sub RecommendTallies()
         mode = 1
     End If
 
+    ' Palette column B holds each checkbox's linked TRUE/FALSE (hidden via ';;;').
+    ' Stay tolerant of legacy "Yes"/"True" text in case of an older sheet.
     Dim sel(0 To 6) As Boolean, anySel As Boolean
+    Dim pv As Variant
     For i = 0 To 6
-        sel(i) = (UCase(Trim(CStr(ws.Cells(PAL_FIRST + i, 2).Value))) = "YES")
+        pv = ws.Cells(PAL_FIRST + i, 2).Value
+        sel(i) = (pv = True) Or (UCase(Trim(CStr(pv & ""))) = "TRUE") Or (UCase(Trim(CStr(pv & ""))) = "YES")
         If sel(i) Then anySel = True
     Next i
 
     ClearOutputs ws, ws2
 
     If Not anySel Then
-        ws.Range(STATUS_CELL).Value = "Select at least one length (set Include? = Yes), then click Recommend Tallies."
+        ws.Range(STATUS_CELL).Value = "Check at least one length box, then click Recommend Tallies."
         Application.ScreenUpdating = True
         Exit Sub
     End If
@@ -136,30 +140,25 @@ Private Sub WritePatterns(ws2 As Worksheet, L As Variant, patterns() As Variant,
         Dim cnt As Variant: cnt = patterns(p)
         ws2.Cells(r, 1).Value = p
         ws2.Cells(r, 2).Value = RowLabel(L, cnt)
-        Dim pcs As Integer: pcs = 0
         For i = 0 To 6
             If cnt(i) > 0 Then ws2.Cells(r, 3 + i).Value = cnt(i)
-            pcs = pcs + cnt(i)
         Next i
-        ws2.Cells(r, 10).Value = pcs
-        ws2.Cells(r, 11).Value = 72
         r = r + 1: shown = shown + 1
     Next p
 
     Dim lastPat As Long: lastPat = PAT_TOP + shown - 1
-    ws2.Range("L" & PAT_TOP & ":L" & lastPat).Interior.Color = RGB(255, 247, 214)
+    ' Rows-to-use input column is now J (the Pcs/Ft columns were removed)
+    ws2.Range("J" & PAT_TOP & ":J" & lastPat).Interior.Color = RGB(255, 247, 214)
 
     ' Builder total placed directly below the last pattern row (reactive to row count)
     Dim br As Long: br = lastPat + 1
     ws2.Cells(br, 2).Value = "YOUR HAND-BUILT TALLY (set 'Rows to use' above):"
     For i = 0 To 6
         ws2.Cells(br, 3 + i).Formula = _
-            "=SUMPRODUCT(" & ColL(3 + i) & PAT_TOP & ":" & ColL(3 + i) & lastPat & ",$L$" & PAT_TOP & ":$L$" & lastPat & ")"
+            "=SUMPRODUCT(" & ColL(3 + i) & PAT_TOP & ":" & ColL(3 + i) & lastPat & ",$J$" & PAT_TOP & ":$J$" & lastPat & ")"
     Next i
-    ws2.Cells(br, 10).Formula = "=SUM(C" & br & ":I" & br & ")"
-    ws2.Cells(br, 11).Formula = "=SUMPRODUCT(C" & br & ":I" & br & ",{8,10,12,14,16,18,20})"
-    ws2.Cells(br, 12).Formula = "=SUM($L$" & PAT_TOP & ":$L$" & lastPat & ")&"" rows"""
-    With ws2.Range("A" & br & ":L" & br)
+    ws2.Cells(br, 10).Formula = "=SUM($J$" & PAT_TOP & ":$J$" & lastPat & ")&"" rows"""
+    With ws2.Range("A" & br & ":J" & br)
         .Font.Bold = True
         .Interior.Color = RGB(221, 230, 237)
         .Borders(xlEdgeTop).LineStyle = xlContinuous
@@ -184,7 +183,7 @@ Public Sub SortPatternsBy(ByVal sortCol As Long)
         .SortFields.Clear
         .SortFields.Add Key:=ws2.Range(ColL(CInt(sortCol)) & PAT_TOP & ":" & ColL(CInt(sortCol)) & lastPat), _
                         SortOn:=xlSortOnValues, Order:=xlDescending, DataOption:=xlSortNormal
-        .SetRange ws2.Range("B" & PAT_TOP & ":L" & lastPat)
+        .SetRange ws2.Range("B" & PAT_TOP & ":J" & lastPat)
         .Header = xlNo
         .Apply
     End With
