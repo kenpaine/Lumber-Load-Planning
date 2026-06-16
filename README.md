@@ -1,13 +1,21 @@
-# Centerbeam Lumber Car Layout Project
+# Centerbeam Lumber Car Tools
 
-A planning tool for loading 72‑ft centerbeam rail cars with dimensional lumber.
-It fills each car row to **exactly 72 ft**, uses every pack when the math allows,
-groups like packs into columns, and tracks every pack by **product**, **length**,
-and **grade**.
+Two tools for loading **72‑ft centerbeam rail cars** with dimensional lumber, where every
+car row must fill end‑to‑end to **exactly 72 ft**:
+
+- **Layout Planner** — you have an inventory of packs (product × length × grade) and want
+  the full visual load: it fills each row to 72 ft, groups like packs into columns, and
+  prints a manifest.
+- **Tally Recommender** — you want to build a loadable car from scratch: pick the lengths
+  you want and it recommends complete **720‑ or 1008‑ft** tallies that fit, with selectable
+  match modes and click‑to‑sort tables.
+
+Each tool ships as a **macro‑enabled Excel workbook** and a **standalone browser app** (no
+install, no macros). Only **length** drives the 72‑ft fit.
 
 ---
 
-## Screenshots
+## Centerbeam Layout Planner
 
 ### Browser app — `centerbeam_layout_planner.html`
 
@@ -27,15 +35,65 @@ buttons, live **single product/grade** auto‑fill, and a built‑in **How to Us
 
 ---
 
+## Centerbeam Tally Recommender
+
+Pick the lengths you want and the tool recommends **complete, loadable full‑car tallies**
+(720 ft = 10 rows, or 1008 ft = 14 rows) built from valid 72‑ft rows.
+
+### Browser app — `centerbeam_tally_recommender.html`
+
+No install, no macros, no security prompts — open it in any browser. The full engine: the
+checkbox length palette, all three match modes, both car sizes, click‑to‑sort tables, and a
+live hand‑build total. Light / dark theme.
+
+![Centerbeam Tally Recommender — browser app](tally_html_screenshot.png)
+
+### Excel workbook — `Centerbeam_Tally_Recommender.xlsm`
+
+Macro‑enabled workbook with a checkbox length palette, colored **Recommend Tallies** /
+**Clear** buttons, a sortable recommendations table, a **Row Patterns** tab, and a built‑in
+**How to Use** tab. Click *Enable Content* on open.
+
+![Centerbeam Tally Recommender — Excel workbook](tally_excel_screenshot.png)
+
+### How it works
+
+- **Length palette** — check the lengths you want in the car.
+- **Match mode** —
+  - *Palette — use only selected:* tallies use only the checked lengths.
+  - *Each selected must appear* (default): every checked length shows up somewhere in the car.
+  - *Each must appear + fillers:* every checked length appears; other lengths may finish a row.
+- **Car size** — 720 ft (10 rows) or 1008 ft (14 rows).
+- **Recommended Full‑Car Tallies** — ready‑to‑load cars: piece count per length, total
+  pieces, total feet (always rows × 72), and an OK check. **Click any length header to sort.**
+- **Row Patterns** — every way to fill a single 72‑ft row from your lengths (the building
+  blocks). Click a length header to sort, or type **Rows to use** to hand‑build a custom car;
+  the running total updates live.
+
+---
+
 ## What's in this project
 
 | File | What it is |
 |------|-----------|
-| `Centerbeam_Lumber_Layout_Planner.xlsm` | **The main tool (recommended).** Macro‑enabled workbook with **Solve Layout / Clear Grid / Clear All** buttons, live single product/grade auto‑fill, and a **How to Use** tab. Click *Enable Content* on open. |
-| `Centerbeam_Lumber_Layout_Planner.xlsx` | **Macro‑free edition.** No buttons, but a native replica of the workbook: **formula‑driven single product/grade auto‑fill**, dropdowns, the colored layout grid, and the same **How to Use** tab. Solving is done in the `.xlsm` or the browser app — a `.xlsx` cannot run a solver. |
-| `CenterbeamSolver.bas` | The VBA module behind the buttons (already embedded in the `.xlsm`; kept here as source). |
-| `centerbeam_layout_planner.html` | **Browser app** with the full feature set: line‑item inventory (product × length × grade), **single or mixed product/grade**, the same column‑stacking solver, a proportional visual car layout, Row Detail, a printable one‑page Manifest with pick list, the length‑colored Pattern Library, and a light/dark theme. Open in any browser, no install. |
-| `source/` | Python scripts that generate the workbook (for maintenance / regeneration). |
+| `Centerbeam_Tally_Recommender.xlsm` | **Tally Recommender (Excel).** Pick lengths → recommended full‑car tallies. Checkbox palette, three match modes, both car sizes, sortable tables, and a **Row Patterns** tab. Click *Enable Content* on open. |
+| `centerbeam_tally_recommender.html` | **Tally Recommender (browser).** The same recommender — no install, no macros, no security prompts. |
+| `Centerbeam_Lumber_Layout_Planner.xlsm` | **Layout Planner (Excel).** Macro‑enabled workbook with **Solve Layout / Clear Grid / Clear All** buttons, live single product/grade auto‑fill, and a **How to Use** tab. Click *Enable Content* on open. |
+| `Centerbeam_Lumber_Layout_Planner.xlsx` | **Layout Planner (macro‑free).** A native replica of the workbook: **formula‑driven single product/grade auto‑fill**, dropdowns, the colored layout grid, and the same **How to Use** tab. Solving is done in the `.xlsm` or the browser app — a `.xlsx` cannot run a solver. |
+| `centerbeam_layout_planner.html` | **Layout Planner (browser)** with the full feature set: line‑item inventory (product × length × grade), **single or mixed product/grade**, the column‑stacking solver, a proportional visual car layout, Row Detail, a printable one‑page Manifest with pick list, the length‑colored Pattern Library, and a light/dark theme. Open in any browser, no install. |
+| `CenterbeamSolver.bas` | VBA behind the Layout Planner buttons (embedded in its `.xlsm`; kept here as source). |
+| `source/build_tally.py`, `source/tally_recommender.bas` | Generator + VBA for the **Tally Recommender** workbook — openpyxl builds the layout, then a pywin32 COM pass injects the macros, buttons, and checkboxes. |
+| `source/` (`build_v3*.py`, `solver_v3.py`) | Python that generates the **Layout Planner** workbook. |
+
+---
+
+## Downloading the Excel (`.xlsm`) files
+
+When you download a macro‑enabled `.xlsm` from the internet, Windows tags it with “Mark of
+the Web” and Excel **blocks its macros** (a red *SECURITY RISK* banner — *Enable Content*
+won’t even appear). To turn them on: **right‑click the file → Properties → check Unblock →
+OK**, then open it and click *Enable Content*. The **browser apps have no macros**, so they
+never trigger this — they’re the friction‑free way to share.
 
 ---
 
@@ -53,7 +111,7 @@ pack and drive the color scheme and the manifest breakdowns.
 
 ---
 
-## Using the workbook
+## Using the Layout Planner workbook
 
 ### Planner sheet
 
@@ -145,9 +203,19 @@ JavaScript in `centerbeam_layout_planner.html` (with the generator Python in `so
 
 ---
 
-## Regenerating the workbook (maintainers)
+## Regenerating the workbooks (maintainers)
 
-Requires Python 3 with `openpyxl`.
+**Tally Recommender** — requires Python 3 with `openpyxl` + `pywin32` and Excel (Windows).
+Close the `.xlsm` in Excel first, or the final save hits a file lock:
+
+```bash
+python source/build_tally.py
+```
+
+openpyxl writes the layout, then a short pywin32 COM pass injects the VBA
+(`source/tally_recommender.bas`), the buttons, and the checkboxes, and saves the `.xlsm`.
+
+**Layout Planner** — requires Python 3 with `openpyxl`.
 
 ```bash
 cd source
