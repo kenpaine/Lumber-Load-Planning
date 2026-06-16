@@ -1,5 +1,7 @@
 # Centerbeam Lumber Car Tools
 
+[![Latest release](https://img.shields.io/github/v/release/kenpaine/Lumber-Load-Planning?label=download&color=2f7d1f)](https://github.com/kenpaine/Lumber-Load-Planning/releases/latest) &nbsp;**[⬇ Download the tools](https://github.com/kenpaine/Lumber-Load-Planning/releases/latest)** — ready‑to‑use Excel workbooks + no‑install browser apps, no build step.
+
 Two tools for loading **72‑ft centerbeam rail cars** with dimensional lumber, where every
 car row must fill end‑to‑end to **exactly 72 ft**:
 
