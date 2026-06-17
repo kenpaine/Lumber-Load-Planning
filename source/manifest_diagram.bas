@@ -200,3 +200,11 @@ End Function
 Public Sub RedrawManifestButton()
     DrawManifestDiagram
 End Sub
+
+Public Sub SetPrintFitToPage()
+    With ThisWorkbook.Worksheets("Manifest").PageSetup
+        .Zoom = False
+        .FitToPagesWide = 1
+        .FitToPagesTall = 1
+    End With
+End Sub

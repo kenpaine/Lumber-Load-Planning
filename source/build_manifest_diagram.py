@@ -113,6 +113,45 @@ def main():
                     if str(mf.Shapes(i).Name).startswith("diag_"))
         print("  seeded; diagram shapes drawn:", ndiag)
 
+        # 5. move Placed Packs directly under the car layout diagram (rows 14-29)
+        placed_packs_row = None
+        for r in range(1, 100):
+            cell_val = str(mf.Cells(r, 1).Value or "")
+            if "PLACED PACKS" in cell_val.upper():
+                placed_packs_row = r
+                break
+
+        if placed_packs_row is None:
+            print("  WARNING: could not find PLACED PACKS section")
+        else:
+            INSERT_AT = 30           # first row after the diagram area (rows 14-29)
+            PP_ROWS = 9              # banner + col-header + 7 product rows
+            pp_last = placed_packs_row + PP_ROWS - 1
+
+            if placed_packs_row != INSERT_AT:
+                mf.Rows(f"{placed_packs_row}:{pp_last}").Cut()
+                mf.Rows(INSERT_AT).Insert(Shift=-4121)  # xlShiftDown
+                excel.CutCopyMode = False
+                print(f"  moved Placed Packs: rows {placed_packs_row}-{pp_last} -> {INSERT_AT}-{INSERT_AT+PP_ROWS-1}")
+            else:
+                print(f"  Placed Packs already at row {INSERT_AT}")
+
+            # 6. print area: A1:L<last-placed-packs-row>, landscape letter, fit to 1 page
+            pp_end = INSERT_AT + PP_ROWS - 1   # = row 38
+            ps = mf.PageSetup
+            ps.PrintArea = f"A1:L{pp_end}"
+            ps.Orientation = 2        # xlLandscape
+            ps.PaperSize = 1          # xlPaperLetter
+            ps.LeftMargin = excel.InchesToPoints(0.4)
+            ps.RightMargin = excel.InchesToPoints(0.4)
+            ps.TopMargin = excel.InchesToPoints(0.35)
+            ps.BottomMargin = excel.InchesToPoints(0.35)
+            ps.HeaderMargin = excel.InchesToPoints(0.15)
+            ps.FooterMargin = excel.InchesToPoints(0.15)
+            # FitTo via VBA — pywin32 dynamic dispatch can't set FitToTallPages directly
+            excel.Run("SetPrintFitToPage")
+            print(f"  print area A1:L{pp_end}, landscape letter, fit to 1 page")
+
         wb.Save()
         has_vba = bool(wb.HasVBProject)
         print("saved; HasVBProject =", has_vba)
