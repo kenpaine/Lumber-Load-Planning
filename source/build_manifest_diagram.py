@@ -106,18 +106,13 @@ def main():
         btn.OnAction = "RedrawManifestButton"
         print("  added Redraw button")
 
-        # 4. seed the first draw
-        mf.Activate()
-        excel.Run("DrawManifestDiagram")
-        ndiag = sum(1 for i in range(1, mf.Shapes.Count + 1)
-                    if str(mf.Shapes(i).Name).startswith("diag_"))
-        print("  seeded; diagram shapes drawn:", ndiag)
-
-        # 5. move the PICK LIST directly under the car layout diagram (rows 14-29).
-        #    The Placed Packs and Summary blocks reflow below it and are left off the
-        #    print area (Placed Packs doesn't need to print). Idempotent: skips if the
-        #    Pick List is already directly under the diagram.
-        INSERT_AT = 30           # first row after the diagram band (rows 14-29)
+        # 4. The Pick List is now drawn dynamically as shapes by VBA, directly under
+        #    the diagram, wrapping into columns so it stays short. Remove the old
+        #    cell-based Pick List (the shapes replace it) and reserve a blank band
+        #    below the diagram so the shapes never overlap live cells. The Placed
+        #    Packs / Summary tables stay below as data and are left off the print.
+        RESERVE_ROWS = 16
+        band_last = 29 + RESERVE_ROWS    # rows 30..45 reserved for the pick-list shapes
 
         def find_banner(substr):
             for r in range(1, 200):
@@ -125,44 +120,42 @@ def main():
                     return r
             return None
 
+        # 4a. delete any leftover cell-based PICK LIST block (banner .. TOTAL row)
         pick_row = find_banner("PICK LIST")
-        if pick_row is None:
-            print("  WARNING: could not find PICK LIST section")
-        else:
-            # bottom of the block = its TOTAL row (handles any inventory size)
-            pick_end = None
+        if pick_row:
+            total_row = None
             for r in range(pick_row + 1, pick_row + 60):
                 if str(mf.Cells(r, 1).Value or "").strip().upper() == "TOTAL":
-                    pick_end = r
+                    total_row = r
                     break
-            if pick_end is None:
-                pick_end = pick_row + 22   # fallback: banner+header+20 items+total
-            n_pick = pick_end - pick_row + 1
+            if total_row is None:
+                total_row = pick_row + 22
+            mf.Rows(f"{pick_row}:{total_row}").Delete()
+            print(f"  removed old cell Pick List (rows {pick_row}-{total_row})")
 
-            if pick_row != INSERT_AT:
-                mf.Rows(f"{pick_row}:{pick_end}").Cut()
-                mf.Rows(INSERT_AT).Insert(Shift=-4121)  # xlShiftDown (insert cut cells)
-                excel.CutCopyMode = False
-                print(f"  moved Pick List: rows {pick_row}-{pick_end} -> {INSERT_AT}-{INSERT_AT+n_pick-1}")
-            else:
-                print(f"  Pick List already at row {INSERT_AT}")
+        # 4b. reserve the blank band: push the first data table (Placed Packs) to row 46
+        pp_row = find_banner("PLACED PACKS")
+        if pp_row and pp_row < 30 + RESERVE_ROWS:
+            cnt = 30 + RESERVE_ROWS - pp_row
+            mf.Rows(f"{pp_row}:{pp_row + cnt - 1}").Insert(Shift=-4121)  # xlShiftDown
+            print(f"  reserved rows 30-{band_last}; data tables start at row {30 + RESERVE_ROWS}")
+        else:
+            print("  Pick List band already reserved")
 
-            # 6. print area down to the bottom of the relocated Pick List;
-            #    landscape Letter, fit to one page. Placed Packs now sits below and is excluded.
-            pick_bottom = INSERT_AT + n_pick - 1
-            ps = mf.PageSetup
-            ps.PrintArea = f"A1:L{pick_bottom}"
-            ps.Orientation = 2        # xlLandscape
-            ps.PaperSize = 1          # xlPaperLetter
-            ps.LeftMargin = excel.InchesToPoints(0.4)
-            ps.RightMargin = excel.InchesToPoints(0.4)
-            ps.TopMargin = excel.InchesToPoints(0.35)
-            ps.BottomMargin = excel.InchesToPoints(0.35)
-            ps.HeaderMargin = excel.InchesToPoints(0.15)
-            ps.FooterMargin = excel.InchesToPoints(0.15)
-            # FitTo via VBA — pywin32 dynamic dispatch can't set FitToPagesTall directly
-            excel.Run("SetPrintFitToPage")
-            print(f"  print area A1:L{pick_bottom}, landscape letter, fit to 1 page")
+        # 4c. clean the reserve band so only the shapes show there (no stray fills)
+        mf.Rows(f"30:{band_last}").ClearFormats()
+        mf.Rows(f"30:{band_last}").RowHeight = 14.4
+
+        # 5. seed the draw — DrawManifestDiagram now also draws the dynamic pick list
+        #    and sets the fit-to-one-page landscape print area to the pick list's bottom.
+        mf.Activate()
+        excel.Run("DrawManifestDiagram")
+        ndiag = sum(1 for i in range(1, mf.Shapes.Count + 1)
+                    if str(mf.Shapes(i).Name).startswith("diag_"))
+        npick = sum(1 for i in range(1, mf.Shapes.Count + 1)
+                    if str(mf.Shapes(i).Name).startswith("pick_"))
+        print(f"  seeded; diagram shapes: {ndiag}, pick-list shapes: {npick}")
+        print("  print area:", mf.PageSetup.PrintArea)
 
         wb.Save()
         has_vba = bool(wb.HasVBProject)
