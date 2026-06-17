@@ -30,6 +30,9 @@ Public Sub DrawManifestDiagram()
 
     ClearDiagram mf
 
+    Dim pal As Long: pal = CurrentPalette()
+    ApplyLegend mf, pal
+
     Dim nRows As Long: nRows = CLng(Val(wsP.Range("C5").Value))
     If nRows < 2 Then nRows = 10
     Dim perSide As Long: perSide = nRows \ 2
@@ -91,16 +94,14 @@ Public Sub DrawManifestDiagram()
                     If L > 0 Then
                         anyPack = True
                         Dim cl As Range: Set cl = wsP.Cells(pr, 2 + s)
-                        Dim bc As Long: bc = RGB(120, 120, 120)
-                        On Error Resume Next
-                        bc = cl.DisplayFormat.Borders(xlEdgeLeft).Color
-                        On Error GoTo 0
+                        Dim fcol As Long, bcol As Long, tcol As Long
+                        PackColors cl, v, pal, fcol, bcol, tcol
                         Dim rc As Shape
                         Set rc = mf.Shapes.AddShape(msoShapeRectangle, x0 + labelW + cur * pxft, y, L * pxft, bandH)
                         NameShape rc
-                        rc.Fill.ForeColor.RGB = cl.DisplayFormat.Interior.Color
-                        rc.Line.ForeColor.RGB = bc
-                        rc.Line.Weight = 1.75
+                        rc.Fill.ForeColor.RGB = fcol
+                        rc.Line.ForeColor.RGB = bcol
+                        rc.Line.Weight = IIf(pal = 0, 1.75, 1#)
                         rc.Shadow.Visible = msoFalse
                         Dim tr As Object: Set tr = rc.TextFrame2.TextRange
                         If L * pxft > 50 And bandH >= 12 Then
@@ -111,7 +112,7 @@ Public Sub DrawManifestDiagram()
                         On Error Resume Next
                         tr.Font.Size = 7
                         tr.Font.Bold = msoTrue
-                        tr.Font.Fill.ForeColor.RGB = cl.DisplayFormat.Font.Color
+                        tr.Font.Fill.ForeColor.RGB = tcol
                         rc.TextFrame2.VerticalAnchor = msoAnchorMiddle
                         tr.ParagraphFormat.Alignment = msoAlignCenter
                         rc.TextFrame2.WordWrap = msoFalse
@@ -210,6 +211,119 @@ Public Sub RedrawManifestButton()
     DrawManifestDiagram
 End Sub
 
+' ===== Color palettes =====
+' The user picks a palette in cell N2 (off the print area). Three options:
+'   0 = Color (current pastel "Sorbet" scheme — reads the live Planner grid colors)
+'   1 = High contrast (saturated, distinct fills with black borders/auto text)
+'   2 = Black & white (grayscale fills for clean printing)
+' Length drives the fill (the primary cue); product/grade ride along in each
+' pack's label. The length LEGEND (row 10) is recolored to match the palette.
+
+Public Function CurrentPalette() As Long
+    On Error Resume Next
+    Dim v As String
+    v = UCase(Trim(CStr(ThisWorkbook.Worksheets("Manifest").Range("N2").Value & "")))
+    If InStr(v, "B & W") > 0 Or InStr(v, "BLACK") > 0 Or v = "BW" Then
+        CurrentPalette = 2
+    ElseIf InStr(v, "CONTRAST") > 0 Or InStr(v, "HIGH") > 0 Then
+        CurrentPalette = 1
+    Else
+        CurrentPalette = 0
+    End If
+End Function
+
+' Fill/border/text for one pack, given its grid cell and "prod-len-grd" code.
+Private Sub PackColors(cl As Range, v As String, pal As Long, _
+                       ByRef fillCol As Long, ByRef borderCol As Long, ByRef textCol As Long)
+    If pal = 0 Then
+        ' current scheme: live colors from the Planner grid cell
+        fillCol = cl.DisplayFormat.Interior.Color
+        borderCol = RGB(120, 120, 120)
+        On Error Resume Next
+        borderCol = cl.DisplayFormat.Borders(xlEdgeLeft).Color
+        textCol = cl.DisplayFormat.Font.Color
+        On Error GoTo 0
+    Else
+        Dim L As Long: L = CLng(ParseLen(v))
+        fillCol = IIf(pal = 1, HCLen(L), BWLen(L))
+        borderCol = RGB(0, 0, 0)
+        textCol = BestText(fillCol)
+    End If
+End Sub
+
+' Pastel "Sorbet" length fills (palette 0) — measured from the original legend.
+Private Function Pal0Len(ByVal L As Long) As Long
+    Select Case L
+        Case 8:  Pal0Len = 15389883
+        Case 10: Pal0Len = 13231554
+        Case 12: Pal0Len = 11724795
+        Case 14: Pal0Len = 15650277
+        Case 16: Pal0Len = 12371194
+        Case 18: Pal0Len = 14740159
+        Case 20: Pal0Len = 11462620
+        Case Else: Pal0Len = RGB(240, 240, 240)
+    End Select
+End Function
+
+' High-contrast qualitative length fills (palette 1).
+Private Function HCLen(ByVal L As Long) As Long
+    Select Case L
+        Case 8:  HCLen = RGB(31, 119, 180)    ' blue
+        Case 10: HCLen = RGB(44, 160, 44)     ' green
+        Case 12: HCLen = RGB(255, 127, 14)    ' orange
+        Case 14: HCLen = RGB(148, 103, 189)   ' purple
+        Case 16: HCLen = RGB(214, 39, 40)     ' red
+        Case 18: HCLen = RGB(23, 190, 207)    ' cyan
+        Case 20: HCLen = RGB(140, 86, 75)     ' brown
+        Case Else: HCLen = RGB(90, 90, 90)
+    End Select
+End Function
+
+' Grayscale length fills, light->dark, all readable with black text (palette 2).
+Private Function BWLen(ByVal L As Long) As Long
+    Select Case L
+        Case 8:  BWLen = RGB(255, 255, 255)
+        Case 10: BWLen = RGB(238, 238, 238)
+        Case 12: BWLen = RGB(221, 221, 221)
+        Case 14: BWLen = RGB(204, 204, 204)
+        Case 16: BWLen = RGB(187, 187, 187)
+        Case 18: BWLen = RGB(170, 170, 170)
+        Case 20: BWLen = RGB(153, 153, 153)
+        Case Else: BWLen = RGB(255, 255, 255)
+    End Select
+End Function
+
+' Black or white text, whichever reads better on the given fill.
+Private Function BestText(ByVal c As Long) As Long
+    Dim r As Long, g As Long, b As Long
+    r = c And &HFF&
+    g = (c \ &H100) And &HFF&
+    b = (c \ &H10000) And &HFF&
+    If (0.299 * r + 0.587 * g + 0.114 * b) > 150 Then
+        BestText = RGB(0, 0, 0)
+    Else
+        BestText = RGB(255, 255, 255)
+    End If
+End Function
+
+' Recolor the LENGTH legend (row 10, cols B..H) to match the active palette so
+' the diagram and pick list always agree with the legend.
+Private Sub ApplyLegend(mf As Worksheet, pal As Long)
+    Dim lv As Variant: lv = Array(8, 10, 12, 14, 16, 18, 20)
+    Dim i As Long, col As Long
+    For i = 0 To 6
+        Select Case pal
+            Case 0: col = Pal0Len(CLng(lv(i)))
+            Case 1: col = HCLen(CLng(lv(i)))
+            Case Else: col = BWLen(CLng(lv(i)))
+        End Select
+        With mf.Cells(10, 2 + i)
+            .Interior.Color = col
+            .Font.Color = BestText(col)
+        End With
+    Next i
+End Sub
+
 ' ===== Dynamic, column-wrapping Pick List (drawn below the diagram) =====
 ' Reads the loaded line items from the Planner and lays them out as a compact
 ' table directly under the car diagram. A long list wraps into additional
@@ -219,6 +333,7 @@ End Sub
 
 Public Sub DrawPickList(mf As Worksheet, wsP As Worksheet)
     ClearPick mf
+    Dim pal As Long: pal = CurrentPalette()
 
     ' --- gather loaded line items (product set, packs placed > 0) ---
     Dim cap As Long: cap = PLI_LAST - PLI_FIRST + 1
@@ -240,7 +355,8 @@ Public Sub DrawPickList(mf As Worksheet, wsP As Worksheet)
         End If
     Next r
 
-    ' --- length -> fill color from the LENGTH legend (row 10, cols B..H) ---
+    ' --- length -> fill color from the LENGTH legend (row 10, cols B..H), which
+    '     ApplyLegend has already recolored for the active palette ---
     Dim lenVal As Variant: lenVal = Array(8, 10, 12, 14, 16, 18, 20)
     Dim lenClr(0 To 6) As Long
     Dim i As Long
@@ -305,9 +421,10 @@ Public Sub DrawPickList(mf As Worksheet, wsP As Worksheet)
                 For li = 0 To 6
                     If lenVal(li) = lng(idx) Then lc = lenClr(li): Exit For
                 Next li
+                Dim lt As Long: lt = IIf(pal = 0, vbWhite, BestText(lc))
                 PickShape mf, bx, iy, wNum, rowH, CStr(idx), vbWhite, True, RGB(90, 90, 90), False, 7.5, 2
                 PickShape mf, bx + wNum, iy, wProd, rowH, prod(idx), vbWhite, True, RGB(30, 30, 30), True, 7.5, 2
-                PickShape mf, bx + wNum + wProd, iy, wLen, rowH, CStr(CLng(lng(idx))) & "'", lc, True, vbWhite, True, 7.5, 2
+                PickShape mf, bx + wNum + wProd, iy, wLen, rowH, CStr(CLng(lng(idx))) & "'", lc, True, lt, True, 7.5, 2
                 PickShape mf, bx + wNum + wProd + wLen, iy, wGrd, rowH, grd(idx), vbWhite, True, RGB(60, 60, 60), False, 7.5, 2
                 PickShape mf, bx + wNum + wProd + wLen + wGrd, iy, wPcs, rowH, CStr(CLng(pcs(idx))), RGB(244, 244, 240), True, RGB(20, 20, 20), True, 7.5, 2
             End If

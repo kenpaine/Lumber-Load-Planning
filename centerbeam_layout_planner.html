@@ -91,8 +91,22 @@
   .manifest-head{display:grid;grid-template-columns:repeat(4,auto);gap:18px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:10px 14px;margin-bottom:12px;font-size:12px;width:max-content}
   .manifest-head .k{font-size:9px;color:var(--text3);text-transform:uppercase}
   .twocol{display:flex;gap:24px;flex-wrap:wrap}
+  /* Manifest: palette selector + scale-diagram print sheet + dynamic pick list */
+  .mf-pal{font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px}
+  .mf-pal select{font-size:12px;padding:3px 7px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:5px}
+  .printsheet{background:#fff;color:#1a1a1a;border:1px solid var(--border);border-radius:8px;padding:16px 16px 18px;margin-bottom:14px}
+  .printsheet .sheet-title{font-size:18px;font-weight:800;color:#2e5e20;line-height:1.1}
+  .printsheet .ps-sub{font-size:11px;color:#666;margin:2px 0 10px}
+  .mf-legend{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+  .mf-legend .chip{font-size:10px;font-weight:700;padding:2px 9px;border-radius:3px;border:1px solid rgba(0,0,0,.18)}
+  svg.mfdiagram{width:100%;height:auto;display:block}
+  .pl-title{font-size:11px;font-weight:700;color:#fff;background:#222820;padding:4px 9px;border-radius:4px;margin-top:14px;letter-spacing:.04em}
+  .pl-cols{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:7px}
+  .pl-table{border-collapse:collapse;font-size:10px}
+  .pl-table th{background:#2b3126;color:#fff;font-weight:700;padding:3px 7px;border:1px solid #cfcfcf;font-size:9px}
+  .pl-table td{padding:2px 7px;border:1px solid #d8d8d8;text-align:center;color:#1a1a1a;white-space:nowrap}
   @media print{
-    @page{size:letter portrait;margin:0.35in}
+    @page{size:letter landscape;margin:0.3in}
     header,.sidebar,.tabbar,.toolbar,.legendbar{display:none!important}
     .app{display:block;height:auto}
     .main{overflow:visible}
@@ -104,7 +118,8 @@
     .manifest-head{background:#f4f4f4!important}
     *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
     .secttitle{color:#2e5e20!important}
-    .printbtn{display:none!important}
+    .printbtn,.mf-pal,.screen-only{display:none!important}
+    .printsheet{border:none!important;padding:0!important;margin:0!important}
   }
 </style>
 </head>
@@ -164,7 +179,7 @@
     </div>
     <div class="ilist" id="itemList"></div>
     <div class="brow">
-      <button class="btn primary" onclick="solveLayout()">⚡ Solve Layout</button>
+      <button class="btn primary" id="solveBtn" onclick="solveLayout()">⚡ Solve Layout</button>
       <button class="btn danger" onclick="clearAll()">✕ Clear</button>
     </div>
 
@@ -226,7 +241,21 @@ const CV_THEME={
   light:{bg:"#e7ebe1",tie:"#d7cdc0",deck:"#f3f0e6",deckStroke:"#9aa892",rail:"#9a9aa6",rowBg:"#ffffff",rowStroke:"#d2dbcb",lblExact:"#3d7a28",lblOver:"#b03020",lblNorm:"#8a9a82",emptyFill:"rgba(0,0,0,.035)",emptyText:"#aab6a2",exactMark:"#3d7a28",shortText:"#a0680f",bottomRail:"#808896",rulerLine:"#9aaa92",tickText:"#7f8f77",titleText:"#3d5e30"}
 };
 
-let state={numRows:14,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2"};
+// ---------- Manifest color palettes (match the .xlsm) ----------
+// 0 = Color (pastel "Sorbet"), 1 = High contrast, 2 = B & W (print).
+// Length drives the fill; product/grade ride along in each pack label.
+const PALETTES=["Color","High contrast","B & W (print)"];
+const HC_LEN={8:"#1F77B4",10:"#2CA02C",12:"#FF7F0E",14:"#9467BD",16:"#D62728",18:"#17BECF",20:"#8C564B"};
+const BW_LEN={8:"#FFFFFF",10:"#EEEEEE",12:"#DDDDDD",14:"#CCCCCC",16:"#BBBBBB",18:"#AAAAAA",20:"#999999"};
+function bestText(hex){ const r=parseInt(hex.substr(1,2),16),g=parseInt(hex.substr(3,2),16),b=parseInt(hex.substr(5,2),16);
+  return (0.299*r+0.587*g+0.114*b)>150?"#000000":"#FFFFFF"; }
+function lenFill(L){ const p=state.palette; return p===0?LCOLORS[L]:p===1?HC_LEN[L]:BW_LEN[L]; }
+function lenText(L){ return state.palette===0?INK:bestText(lenFill(L)); }
+function packBorder(c){ return state.palette===0?PCOLORS[c.product]:"#000000"; }
+function packText(c){ return state.palette===0?GFONT[c.grade]:bestText(lenFill(c.length)); }
+function setPalette(v){ state.palette=+v; renderManifest(); }
+
+let state={numRows:14,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2",palette:0};
 
 // ---------- solver ----------
 function allPatterns(types){
@@ -260,6 +289,8 @@ function solveLengths(lengthTotal,numRows){
   (function bt(r){
     if(found||Date.now()-t0>5000)return;
     if(r===fillable){found=true;return;}
+    let sumRem=0; for(const t of types) sumRem+=t*(rem[t]||0);
+    if(sumRem<(fillable-r)*TARGET)return;   // not enough length left to fill the rows still needed
     for(const p of pats){ if(can(p)){ use(p,-1); chosen.push(p); bt(r+1); if(found)return; chosen.pop(); use(p,1); } }
   })(0);
   if(!found) return null;
@@ -354,13 +385,49 @@ function applySingle(){
 function removeItem(i){ state.items.splice(i,1); solveLayout(); }
 function clearAll(){ state.items=[]; state.rows=Array.from({length:state.numRows},()=>[]); state.unplaced=[]; renderAll(); }
 
-function solveLayout(){
-  const res=solve(state.items,state.numRows);
+// ---------- solve scheduling: debounced + off-main-thread Web Worker ----------
+// The backtracking solver can run up to its internal timeout (a few seconds) on
+// awkward inventories. Doing that inline froze the whole tab on every add/remove,
+// so edits are debounced and the solve runs in a cancellable Worker. A plain
+// synchronous fallback is used when Workers aren't available (e.g. file://).
+let _solveTimer=null,_worker=null,_workerURL=null,_solveSeq=0,_noWorker=false;
+function _workerSource(){
+  return `const TARGET=${TARGET};const LENGTHS=${JSON.stringify(LENGTHS)};const PRODUCTS=${JSON.stringify(PRODUCTS)};const GRADES=${JSON.stringify(GRADES)};
+const distinct=p=>new Set(p).size;
+${allPatterns.toString()}
+${cmpRows.toString()}
+${patBetter.toString()}
+${solveLengths.toString()}
+${solve.toString()}
+onmessage=function(e){try{postMessage(solve(e.data.items,e.data.numRows));}catch(_){postMessage({rows:null,unplaced:null});}};`;
+}
+function _spawnWorker(){
+  if(_worker){ _worker.terminate(); _worker=null; }           // cancel any in-flight (stale) solve
+  if(!_workerURL) _workerURL=URL.createObjectURL(new Blob([_workerSource()],{type:"application/javascript"}));
+  _worker=new Worker(_workerURL);
+  return _worker;
+}
+function setSolving(on){ const b=document.getElementById("solveBtn"); if(!b) return;
+  if(on){ if(!b.dataset.idle) b.dataset.idle=b.textContent; b.textContent="⏳ Solving…"; b.disabled=true; }
+  else { b.textContent=b.dataset.idle||"⚡ Solve Layout"; b.disabled=false; } }
+function applySolution(res){ res=res||{};
   state.rows=res.rows||Array.from({length:state.numRows},()=>[]);
   state.unplaced=res.unplaced||[];
-  renderAll();
-  if(state.tab==="visual") zoomFit();
+  renderAll(); if(state.tab==="visual") zoomFit(); }
+function runSolve(){
+  if(!_noWorker && typeof Worker!=="undefined"){
+    try{
+      const w=_spawnWorker(), seq=++_solveSeq; setSolving(true);
+      w.onmessage=(e)=>{ if(seq!==_solveSeq) return; setSolving(false); applySolution(e.data); };
+      w.onerror=()=>{ _noWorker=true; setSolving(false); applySolution(solve(state.items,state.numRows)); };
+      w.postMessage({items:state.items.map(it=>({product:it.product,length:it.length,grade:it.grade,qty:it.qty})), numRows:state.numRows});
+      return;
+    }catch(_){ _noWorker=true; }
+  }
+  applySolution(solve(state.items,state.numRows));   // synchronous fallback (file://, no Worker)
 }
+function solveLayout(){ if(_solveTimer) clearTimeout(_solveTimer);
+  _solveTimer=setTimeout(()=>{ _solveTimer=null; runSolve(); }, 140); }
 function renderAll(){ renderInventory(); renderStats(); render(); renderRowDetail(); renderManifest(); renderPatterns(); }
 
 function renderInventory(){
@@ -502,48 +569,95 @@ function pickList(){ const order=[]; const key=c=>`${c.product}|${c.length}|${c.
   state.rows.forEach(r=>r.forEach(c=>{ const k=key(c); if(!(k in counts)){counts[k]=0;order.push(c);} counts[k]++; }));
   order.sort((a,b)=> PRODUCTS.indexOf(a.product)-PRODUCTS.indexOf(b.product) || a.length-b.length || GRADES.indexOf(a.grade)-GRADES.indexOf(b.grade));
   return order.map(c=>({product:c.product,length:c.length,grade:c.grade,packs:counts[key(c)]})); }
+// To-scale, per-side car diagram (SVG). Side 1 = tiers 1..N/2, Side 2 = N/2+1..N.
+function manifestDiagramSVG(){
+  const N=state.numRows, perSide=Math.max(1,Math.floor(N/2));
+  const W=1000, labelW=34, carW=W-labelW-8, x0=0, pxft=carW/72;
+  const sideHdrH=20, rulerH=15, tierH=26, tierGap=4, sideGap=16, padTop=4;
+  const ranges=[[1,perSide],[perSide+1,N]];
+  let body="", y=padTop;
+  for(const [t0,t1] of ranges){
+    body+=`<text x="${x0}" y="${y+13}" font-size="12" font-weight="700" fill="#2e5e20">SIDE ${t0<=perSide?1:2}</text>`;
+    body+=`<text x="${x0+52}" y="${y+13}" font-size="10" fill="#7a7a7a">tiers ${t0}-${t1}</text>`;
+    y+=sideHdrH;
+    for(let ft=0;ft<=72;ft+=12){ const xx=x0+labelW+ft*pxft;
+      body+=`<text x="${xx}" y="${y+10}" font-size="8" fill="#9a9a9a" text-anchor="middle">${ft}'</text>`; }
+    y+=rulerH;
+    for(let tier=t0; tier<=t1; tier++){
+      const row=state.rows[tier-1]||[];
+      body+=`<text x="${x0+labelW/2}" y="${y+tierH/2+3}" font-size="9" font-weight="700" text-anchor="middle" fill="#5a5a5a">R${tier}</text>`;
+      body+=`<rect x="${x0+labelW}" y="${y}" width="${carW}" height="${tierH}" fill="#f4f4f2" stroke="#cdcdcd" stroke-width="0.5"/>`;
+      let cur=0, any=false;
+      for(const c of row){ if(!c) continue; any=true;
+        const w=c.length*pxft, xx=x0+labelW+cur*pxft;
+        body+=`<rect x="${xx}" y="${y}" width="${w}" height="${tierH}" fill="${lenFill(c.length)}" stroke="${packBorder(c)}" stroke-width="${state.palette===0?1.75:1}"/>`;
+        const label=w>62?`${c.product}·${c.length}·${c.grade}`:(w>20?`${c.length}'`:"");
+        if(label) body+=`<text x="${xx+w/2}" y="${y+tierH/2+3}" font-size="8.5" font-weight="700" text-anchor="middle" fill="${packText(c)}">${label}</text>`;
+        cur+=c.length;
+      }
+      if(!any) body+=`<text x="${x0+labelW+carW/2}" y="${y+tierH/2+3}" font-size="9" font-style="italic" text-anchor="middle" fill="#aaaaaa">— empty —</text>`;
+      y+=tierH+tierGap;
+    }
+    y+=sideGap;
+  }
+  const H=Math.ceil(y+2);
+  return `<svg class="mfdiagram" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI',system-ui,sans-serif"><rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>${body}</svg>`;
+}
+// Length legend recolored to the active palette.
+function lenLegendHTML(){
+  return `<div class="mf-legend">`+LENGTHS.map(L=>`<span class="chip" style="background:${lenFill(L)};color:${lenText(L)}">${L}'</span>`).join("")+`</div>`;
+}
+// Dynamic pick list: only loaded items; a long list wraps into columns to the RIGHT.
+function pickListHTML(){
+  const pl=pickList(), n=pl.length, total=pl.reduce((s,c)=>s+c.packs,0);
+  const numCols=Math.max(1,Math.min(4,Math.ceil(n/6))), rowsPerCol=numCols?Math.ceil(n/numCols):0;
+  let h=`<div class="pl-title">PICK LIST — packs to pull ${n?`(${n} items / ${total} packs)`:`(no packs placed)`}</div>`;
+  h+=`<div class="pl-cols">`;
+  for(let col=0; col<numCols; col++){
+    h+=`<table class="pl-table"><thead><tr><th>#</th><th>Product</th><th>Len</th><th>Grd</th><th>Packs</th></tr></thead><tbody>`;
+    for(let k=0;k<rowsPerCol;k++){ const idx=col*rowsPerCol+k; if(idx>=n) break; const c=pl[idx];
+      h+=`<tr><td>${idx+1}</td><td style="font-weight:700">${c.product}</td>`+
+         `<td style="background:${lenFill(c.length)};color:${lenText(c.length)};font-weight:700">${c.length}'</td>`+
+         `<td style="font-weight:700">${c.grade}</td><td style="font-weight:700">${c.packs}</td></tr>`;
+    }
+    h+=`</tbody></table>`;
+  }
+  h+=`</div>`;
+  return h;
+}
 function renderManifest(){
   const loaded=state.rows.reduce((s,r)=>s+r.reduce((a,c)=>a+c.length,0),0);
   const full=state.rows.filter(r=>r.reduce((a,c)=>a+c.length,0)===TARGET).length;
   const date=new Date().toLocaleDateString();
-  let h=`<div style="display:flex;align-items:center;margin-bottom:10px"><div class="secttitle" style="margin:0">Load Manifest</div><button class="btn printbtn" onclick="window.print()">🖨 Print (1 page)</button></div>`;
+  let h=`<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap">
+    <div class="secttitle" style="margin:0">Load Manifest</div>
+    <label class="mf-pal">Palette
+      <select onchange="setPalette(this.value)">${PALETTES.map((p,i)=>`<option value="${i}" ${state.palette===i?"selected":""}>${p}</option>`).join("")}</select>
+    </label>
+    <button class="btn printbtn" onclick="window.print()">🖨 Print (1 page)</button></div>`;
   h+=`<div class="manifest-head">
     <div><div class="k">Car Type</div>Centerbeam 72 ft</div>
     <div><div class="k">Rows</div>${full}/${state.numRows} full</div>
     <div><div class="k">Total Lineal Ft</div>${loaded} ft</div>
     <div><div class="k">Date</div>${date}</div></div>`;
-  h+=`<div class="secttitle">Car Layout (as loaded) — each row 72 ft</div>`;
-  h+=`<table class="t"><thead><tr><th>Row</th>`;
-  for(let s=0;s<MAX_SLOTS;s++) h+=`<th>P${s+1}</th>`;
-  h+=`<th>Total</th></tr></thead><tbody>`;
-  for(let r=0;r<state.numRows;r++){
-    const row=state.rows[r]||[], used=row.reduce((s,c)=>s+c.length,0);
-    h+=`<tr><td class="rowlbl">R${r+1}</td>`;
-    for(let s=0;s<MAX_SLOTS;s++){ const c=row[s];
-      if(c) h+=`<td class="cell-pack" style="background:${LCOLORS[c.length]};border-color:${PCOLORS[c.product]};color:${GFONT[c.grade]}">${c.product}·${c.length}·${c.grade}</td>`;
-      else h+=`<td></td>`; }
-    h+=`<td style="font-weight:700;color:${used===TARGET?'var(--green2)':used>0?'var(--amber2)':'var(--text3)'}">${used||""}</td></tr>`;
-  }
-  h+=`</tbody></table>`;
+  // print sheet: scale diagram + dynamic pick list (this is exactly what prints)
+  h+=`<div class="printsheet">
+    <div class="sheet-title">LOAD MANIFEST</div>
+    <div class="ps-sub">Car layout — drawn to scale, split per side&nbsp; ·&nbsp; ${date}</div>
+    ${lenLegendHTML()}
+    ${manifestDiagramSVG()}
+    ${pickListHTML()}
+  </div>`;
+  // summaries — reference only, kept off the printed page
   const sp=placedSummaryProduct(), sg=placedSummaryGrade();
-  h+=`<div class="twocol">`;
+  h+=`<div class="screen-only"><div class="twocol">`;
   h+=`<div><div class="secttitle">Summary by Product</div><table class="t"><thead><tr><th>Product</th><th>Packs</th><th>Lineal Ft</th></tr></thead><tbody>`;
   PRODUCTS.forEach(p=>{ if(sp[p].packs) h+=`<tr><td class="cell-pack" style="border-color:${PCOLORS[p]};color:var(--text2);background:var(--bg3)">${p}</td><td>${sp[p].packs}</td><td>${sp[p].lf}</td></tr>`; });
   h+=`</tbody></table></div>`;
   h+=`<div><div class="secttitle">Summary by Grade</div><table class="t"><thead><tr><th>Grade</th><th>Packs</th><th>Lineal Ft</th></tr></thead><tbody>`;
   GRADES.forEach(g=>{ if(sg[g].packs) h+=`<tr><td style="font-weight:700;color:${GFONT[g]};background:#ebede6">${g}</td><td>${sg[g].packs}</td><td>${sg[g].lf}</td></tr>`; });
-  h+=`</tbody></table></div></div>`;
-  const pl=pickList();
-  h+=`<div class="secttitle">Pick List — packs to pull for this car</div>`;
-  h+=`<table class="t"><thead><tr><th>#</th><th>Product</th><th>Length</th><th>Grade</th><th>Packs to Pick</th></tr></thead><tbody>`;
-  pl.forEach((c,i)=>{ h+=`<tr><td>${i+1}</td>
-    <td class="cell-pack" style="border-color:${PCOLORS[c.product]};color:var(--text2);background:var(--bg3)">${c.product}</td>
-    <td style="color:${INK};background:${LCOLORS[c.length]};font-weight:700">${c.length} ft</td>
-    <td style="font-weight:700;color:${GFONT[c.grade]};background:#ebede6">${c.grade}</td>
-    <td style="font-weight:700">${c.packs}</td></tr>`; });
-  const tot=pl.reduce((s,c)=>s+c.packs,0);
-  h+=`<tr><td colspan="4" style="font-weight:700;text-align:right">TOTAL</td><td style="font-weight:700">${tot}</td></tr></tbody></table>`;
-  if(state.unplaced.length){ h+=`<div class="secttitle" style="color:var(--red2)">Unplaced packs (do not fit)</div><div>`+state.unplaced.map(packChip).join("")+`</div>`; }
+  h+=`</tbody></table></div></div></div>`;
+  if(state.unplaced.length){ h+=`<div class="secttitle screen-only" style="color:var(--red2)">Unplaced packs (do not fit)</div><div class="screen-only">`+state.unplaced.map(packChip).join("")+`</div>`; }
   document.getElementById("manifest").innerHTML=h;
 }
 
