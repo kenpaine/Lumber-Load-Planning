@@ -33,6 +33,15 @@ ACTIVATE_EVENT = "\r\n".join([
     "    On Error Resume Next",
     "    DrawManifestDiagram",
     "End Sub",
+    "",
+    "Private Sub Worksheet_Change(ByVal Target As Range)",
+    "    If Intersect(Target, Me.Range(\"N2\")) Is Nothing Then Exit Sub",
+    "    Application.EnableEvents = False",
+    "    On Error Resume Next",
+    "    DrawManifestDiagram",
+    "    On Error GoTo 0",
+    "    Application.EnableEvents = True",
+    "End Sub",
 ])
 
 
@@ -106,6 +115,29 @@ def main():
         btn.TextFrame.VerticalAlignment = -4108
         btn.OnAction = "RedrawManifestButton"
         print("  added Redraw button")
+
+        # 3c. Palette selector (off-print, columns M/N) — Color / High contrast / B&W.
+        #     Changing it fires Worksheet_Change, which redraws the diagram + pick list.
+        lbl = mf.Range("M2")
+        lbl.Value = "Palette:"
+        lbl.Font.Bold = True
+        lbl.HorizontalAlignment = -4152          # xlRight
+        pal_cell = mf.Range("N2")
+        try:
+            pal_cell.Validation.Delete()
+        except Exception:
+            pass
+        # 3 = xlValidateList, 1 = xlValidAlertStop, 1 = xlBetween
+        pal_cell.Validation.Add(3, 1, 1, "Color,High contrast,B & W (print)")
+        pal_cell.Validation.IgnoreBlank = True
+        pal_cell.Validation.InCellDropdown = True
+        if not str(pal_cell.Value or "").strip():
+            pal_cell.Value = "Color"
+        pal_cell.Interior.Color = 0xE8F0DF       # light tint so it reads as an input
+        pal_cell.Font.Bold = True
+        mf.Columns("M").ColumnWidth = 9
+        mf.Columns("N").ColumnWidth = 17
+        print("  added palette selector (N2):", pal_cell.Value)
 
         # 4. The Pick List is now drawn dynamically as shapes by VBA, directly under
         #    the diagram, wrapping into columns so it stays short. Remove the old
