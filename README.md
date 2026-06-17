@@ -1,8 +1,25 @@
 # Centerbeam Lumber Car Tools
 
-[![Latest release](https://img.shields.io/github/v/release/kenpaine/Lumber-Load-Planning?label=download&color=2f7d1f)](https://github.com/kenpaine/Lumber-Load-Planning/releases/latest) &nbsp;**[⬇ Download the tools](https://github.com/kenpaine/Lumber-Load-Planning/releases/latest)** — ready‑to‑use Excel workbooks + no‑install browser apps, no build step.
+[![Latest release](https://img.shields.io/github/v/release/kenpaine/Lumber-Load-Planning?label=release&color=2f7d1f)](https://github.com/kenpaine/Lumber-Load-Planning/releases/latest)
 
-▶ **Open in your browser (no install):** [Tally Recommender](https://kenpaine.github.io/Lumber-Load-Planning/centerbeam_tally_recommender.html) · [Layout Planner](https://kenpaine.github.io/Lumber-Load-Planning/centerbeam_layout_planner.html) — runs on any phone or desktop.
+## ▶ [Open the App Hub](https://kenpaine.github.io/Lumber-Load-Planning/)
+
+The **[App Hub](https://kenpaine.github.io/Lumber-Load-Planning/)** is the easiest way in — a single
+page that launches either **browser app** in one tap (phone or desktop, no install, no macros) and
+links straight to the **Excel workbook** downloads.
+
+[![Centerbeam Lumber Car Tools — the App Hub landing page](landing_screenshot.png)](https://kenpaine.github.io/Lumber-Load-Planning/)
+
+**Or jump straight to a tool:**
+
+|  | Open in browser — no install | Download for Excel |
+|---|---|---|
+| 📋 **Tally Recommender** | [▶ Launch](https://kenpaine.github.io/Lumber-Load-Planning/centerbeam_tally_recommender.html) | [⬇ `.xlsm`](https://github.com/kenpaine/Lumber-Load-Planning/releases/latest/download/Centerbeam_Tally_Recommender.xlsm) |
+| 🧮 **Layout Planner** | [▶ Launch](https://kenpaine.github.io/Lumber-Load-Planning/centerbeam_layout_planner.html) | [⬇ `.xlsm`](https://github.com/kenpaine/Lumber-Load-Planning/releases/latest/download/Centerbeam_Lumber_Layout_Planner.xlsm) |
+
+> **After downloading an `.xlsm`:** right‑click the file → **Properties** → check **Unblock** → **OK**, then
+> open it and click **Enable Content**. The browser apps need neither step. A macro‑free
+> [Layout Planner `.xlsx`](https://github.com/kenpaine/Lumber-Load-Planning/releases/latest) is also on the releases page.
 
 Two tools for loading **72‑ft centerbeam rail cars** with dimensional lumber, where every
 car row must fill end‑to‑end to **exactly 72 ft**:
@@ -33,6 +50,26 @@ one landscape page. Light/dark theme throughout.
 ▶ **[Open it live](https://kenpaine.github.io/Lumber-Load-Planning/centerbeam_layout_planner.html)** — phone or desktop.
 
 ![Centerbeam Lumber Layout Planner — browser app](html_app_screenshot.png)
+
+**Step by step:**
+
+1. **Set the number of rows** — 10 (720 ft) or 14 (1008 ft).
+2. **Choose single or mixed** product/grade. In *single* mode you pick one Product + Grade once
+   and only enter **Length + Packs** on each line; *mixed* lets every line differ.
+3. **Add your inventory** — pick a Length (and Product/Grade if mixed) and a pack count, then
+   **+ Add to Inventory**. Total Lineal Footage and capacity update live.
+4. Click **⚡ Solve Layout** — the solver fills each row to exactly 72 ft and stacks like packs
+   into columns.
+5. Read the result on the tabs: **Visual Layout** (to‑scale, zoomable car), **Row Detail**
+   (per‑row breakdown), **Manifest** (the printable one‑page diagram + pick list), and
+   **Pattern Library** (every 72‑ft length combination).
+6. On the **Manifest** tab, choose a **color palette** — *Color*, *High contrast*, or
+   *B & W (print)* — then print (landscape, one page).
+
+The printable **Manifest** — a to‑scale, per‑side car diagram with a pick list and the
+color‑palette picker, all sized to one landscape page:
+
+![Centerbeam Lumber Layout Planner — printable Manifest (browser app)](manifest_html_screenshot.png)
 
 ### Excel workbook — `Centerbeam_Lumber_Layout_Planner.xlsm`
 
@@ -100,6 +137,9 @@ Macro‑enabled workbook with a checkbox length palette, colored **Recommend Tal
 | `CenterbeamSolver.bas` | VBA behind the Layout Planner buttons (embedded in its `.xlsm`; kept here as source). |
 | `source/build_tally.py`, `source/tally_recommender.bas` | Generator + VBA for the **Tally Recommender** workbook — openpyxl builds the layout, then a pywin32 COM pass injects the macros, buttons, and checkboxes. |
 | `source/` (`build_v3*.py`, `solver_v3.py`) | Python that generates the **Layout Planner** workbook. |
+| `index.html` | **App Hub** landing page (served by GitHub Pages) — launches the two browser apps and links the Excel downloads. |
+
+> 🚃 **Fastest path:** open the **[App Hub](https://kenpaine.github.io/Lumber-Load-Planning/)** — it launches either browser app in one tap and links both Excel downloads, no repo‑digging required.
 
 ---
 
