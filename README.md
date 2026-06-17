@@ -149,13 +149,26 @@ A solved example load is included so the sheet is populated on open.
 
 ### Manifest sheet
 
-Auto‑generates from the Planner:
+Auto‑generates from the Planner and is built for a clean **one‑page landscape**
+print:
 
-- **Car Layout** grid (mirror of the Planner, colored by length, bordered by product)
-- **Summary by Product**, **Summary by Grade**
-- **Placed Packs — Product × Grade** matrix
+- **Car Layout — drawn to scale**, split per side: each pack is a rectangle whose
+  width equals its length in feet, laid out against a 0–72 ft ruler, with rows
+  1…N/2 on Side 1 and N/2+1…N on Side 2 — so you can see how the columns line up
+  on the car. Redrawn from the solved load whenever you open the tab (or click
+  **Redraw**).
+- **Pick List** directly beneath it — only the loaded line items (product ×
+  length × grade × packs to pull). A long list **wraps into columns to the right**
+  instead of growing down, so the diagram always prints as large as possible.
+- **Color palette** selector (top‑right, off the printed area): choose **Color**
+  (the pastel scheme), **High contrast** (saturated, maximally distinct), or
+  **B & W (print)** (grayscale) for clean black‑and‑white printing. The diagram,
+  pick list, and length legend all recolor to match.
+- **Summary by Product / Grade** and the **Placed Packs — Product × Grade** matrix
+  remain below as reference data (off the printed page).
 
-Print the Manifest in **landscape** for a clean one‑page sheet.
+The print area sizes itself to the bottom of the pick list and fits one landscape
+Letter page automatically.
 
 ### Pattern Library sheet
 
