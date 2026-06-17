@@ -24,8 +24,11 @@ install, no macros). Only **length** drives the 72‑ft fit.
 ### Browser app — `centerbeam_layout_planner.html`
 
 Full‑featured app: line‑item inventory, **single or mixed product/grade**, the
-column‑stacking solver, a proportional visual car layout, Row Detail, a printable
-Manifest with pick list, the Pattern Library, and a light/dark theme.
+column‑stacking solver, a proportional visual car layout, Row Detail, and the
+Pattern Library. Its **Manifest** matches the Excel tool — a **to‑scale, per‑side
+car diagram**, a **dynamic pick list** that wraps into columns when long, and a
+**color palette** picker (Color / High contrast / **B & W for printing**) — all on
+one landscape page. Light/dark theme throughout.
 
 ▶ **[Open it live](https://kenpaine.github.io/Lumber-Load-Planning/centerbeam_layout_planner.html)** — phone or desktop.
 
