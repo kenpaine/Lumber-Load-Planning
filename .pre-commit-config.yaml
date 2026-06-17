@@ -1,0 +1,40 @@
+# Pre-commit hooks for Lumber-Load-Planning.
+#
+# Scoped deliberately:
+#   - ruff lints + formats the Python build scripts (source/*.py) only.
+#   - gitleaks scans every commit for secrets (it would have caught a ghp_/gho_ token).
+#   - the hygiene hooks skip binaries and the hand-tuned single-file apps
+#     (centerbeam_*.html, index.html) so they are never reflowed.
+#
+# Install once:  pre-commit install
+# Run on demand: pre-commit run --all-files
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.17
+    hooks:
+      # Lint real bugs only (rules F + E9, configured in ruff.toml) and auto-fix
+      # safe issues like unused imports. The reformatter is intentionally NOT run —
+      # the build scripts use a deliberately compact style we don't want reflowed.
+      - id: ruff
+        args: [--fix]
+        files: ^source/.*\.py$
+
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: gitleaks (scan staged changes for secrets)
+        entry: gitleaks git --staged --redact --no-banner
+        language: system
+        pass_filenames: false
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '(?i)(\.(png|jpg|jpeg|gif|xlsm|xlsx)$|^(centerbeam_.*|index)\.html$)'
+      - id: end-of-file-fixer
+        exclude: '(?i)(\.(png|jpg|jpeg|gif|xlsm|xlsx)$|^(centerbeam_.*|index)\.html$)'
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-added-large-files
+        args: [--maxkb=2000]
