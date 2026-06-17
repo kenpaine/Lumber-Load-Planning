@@ -43,7 +43,10 @@ Public Sub DrawManifestDiagram()
     If availH < 140 Then availH = 320
 
     Dim labelW As Double: labelW = 28      ' left gutter for "R1" labels
-    Dim carW As Double: carW = 520         ' 72 ft is drawn this wide
+    Dim rightPad As Double: rightPad = 14  ' room for the "72'" ruler label overhang
+    ' fill the full print width (columns A..L) instead of a fixed 520 pt
+    Dim carW As Double: carW = mf.Range("A14:L14").Width - labelW - rightPad
+    If carW < 300 Then carW = 520          ' fallback if columns are unexpectedly narrow
     Dim pxft As Double: pxft = carW / TARGETFT
     Dim sideHdrH As Double: sideHdrH = 14
     Dim rulerH As Double: rulerH = 11

@@ -85,12 +85,13 @@ def main():
         mcm.AddFromString(ACTIVATE_EVENT)
         print("  injected Worksheet_Activate ->", mf.CodeName)
 
-        # 3b. Redraw button (idempotent), placed to the right of the diagram
+        # 3b. Redraw button (idempotent), parked just right of the L-column print edge
+        #     so the full-width diagram has the page to itself and the button never prints.
         for i in range(mf.Shapes.Count, 0, -1):
             if mf.Shapes(i).Name == "btn_redraw":
-                mf.Shapes(i).Delete
-        left = mf.Range("A14").Left + 556
-        top = mf.Range("A14").Top + 2
+                mf.Shapes(i).Delete()
+        left = mf.Range("M14").Left + 6      # column M starts past the A:L print area
+        top = mf.Range("A13").Top
         btn = mf.Shapes.AddShape(MSO_ROUNDED_RECT, left, top, 86, 22)
         btn.Name = "btn_redraw"
         btn.Fill.Solid()
