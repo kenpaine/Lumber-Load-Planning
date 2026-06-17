@@ -179,7 +179,7 @@
     </div>
     <div class="ilist" id="itemList"></div>
     <div class="brow">
-      <button class="btn primary" onclick="solveLayout()">⚡ Solve Layout</button>
+      <button class="btn primary" id="solveBtn" onclick="solveLayout()">⚡ Solve Layout</button>
       <button class="btn danger" onclick="clearAll()">✕ Clear</button>
     </div>
 
@@ -289,6 +289,8 @@ function solveLengths(lengthTotal,numRows){
   (function bt(r){
     if(found||Date.now()-t0>5000)return;
     if(r===fillable){found=true;return;}
+    let sumRem=0; for(const t of types) sumRem+=t*(rem[t]||0);
+    if(sumRem<(fillable-r)*TARGET)return;   // not enough length left to fill the rows still needed
     for(const p of pats){ if(can(p)){ use(p,-1); chosen.push(p); bt(r+1); if(found)return; chosen.pop(); use(p,1); } }
   })(0);
   if(!found) return null;
@@ -383,13 +385,49 @@ function applySingle(){
 function removeItem(i){ state.items.splice(i,1); solveLayout(); }
 function clearAll(){ state.items=[]; state.rows=Array.from({length:state.numRows},()=>[]); state.unplaced=[]; renderAll(); }
 
-function solveLayout(){
-  const res=solve(state.items,state.numRows);
+// ---------- solve scheduling: debounced + off-main-thread Web Worker ----------
+// The backtracking solver can run up to its internal timeout (a few seconds) on
+// awkward inventories. Doing that inline froze the whole tab on every add/remove,
+// so edits are debounced and the solve runs in a cancellable Worker. A plain
+// synchronous fallback is used when Workers aren't available (e.g. file://).
+let _solveTimer=null,_worker=null,_workerURL=null,_solveSeq=0,_noWorker=false;
+function _workerSource(){
+  return `const TARGET=${TARGET};const LENGTHS=${JSON.stringify(LENGTHS)};const PRODUCTS=${JSON.stringify(PRODUCTS)};const GRADES=${JSON.stringify(GRADES)};
+const distinct=p=>new Set(p).size;
+${allPatterns.toString()}
+${cmpRows.toString()}
+${patBetter.toString()}
+${solveLengths.toString()}
+${solve.toString()}
+onmessage=function(e){try{postMessage(solve(e.data.items,e.data.numRows));}catch(_){postMessage({rows:null,unplaced:null});}};`;
+}
+function _spawnWorker(){
+  if(_worker){ _worker.terminate(); _worker=null; }           // cancel any in-flight (stale) solve
+  if(!_workerURL) _workerURL=URL.createObjectURL(new Blob([_workerSource()],{type:"application/javascript"}));
+  _worker=new Worker(_workerURL);
+  return _worker;
+}
+function setSolving(on){ const b=document.getElementById("solveBtn"); if(!b) return;
+  if(on){ if(!b.dataset.idle) b.dataset.idle=b.textContent; b.textContent="⏳ Solving…"; b.disabled=true; }
+  else { b.textContent=b.dataset.idle||"⚡ Solve Layout"; b.disabled=false; } }
+function applySolution(res){ res=res||{};
   state.rows=res.rows||Array.from({length:state.numRows},()=>[]);
   state.unplaced=res.unplaced||[];
-  renderAll();
-  if(state.tab==="visual") zoomFit();
+  renderAll(); if(state.tab==="visual") zoomFit(); }
+function runSolve(){
+  if(!_noWorker && typeof Worker!=="undefined"){
+    try{
+      const w=_spawnWorker(), seq=++_solveSeq; setSolving(true);
+      w.onmessage=(e)=>{ if(seq!==_solveSeq) return; setSolving(false); applySolution(e.data); };
+      w.onerror=()=>{ _noWorker=true; setSolving(false); applySolution(solve(state.items,state.numRows)); };
+      w.postMessage({items:state.items.map(it=>({product:it.product,length:it.length,grade:it.grade,qty:it.qty})), numRows:state.numRows});
+      return;
+    }catch(_){ _noWorker=true; }
+  }
+  applySolution(solve(state.items,state.numRows));   // synchronous fallback (file://, no Worker)
 }
+function solveLayout(){ if(_solveTimer) clearTimeout(_solveTimer);
+  _solveTimer=setTimeout(()=>{ _solveTimer=null; runSolve(); }, 140); }
 function renderAll(){ renderInventory(); renderStats(); render(); renderRowDetail(); renderManifest(); renderPatterns(); }
 
 function renderInventory(){
