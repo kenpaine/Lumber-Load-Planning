@@ -138,6 +138,14 @@
     <div class="hint" id="modeHint"></div>
 
     <div class="sec">Length Colors</div>
+    <div>
+      <label>Color palette</label>
+      <select id="paletteSel" onchange="setPalette(this.value)">
+        <option value="0">Color</option>
+        <option value="1">High contrast</option>
+        <option value="2">B &amp; W (print)</option>
+      </select>
+    </div>
     <div class="legend" id="legend"></div>
   </div>
 
@@ -158,6 +166,18 @@
 const LENGTHS=[8,10,12,14,16,18,20];
 const LCOLORS={8:"#BBD4EA",10:"#C2E5C9",12:"#FBE7B2",14:"#E5CDEE",16:"#FAC4BC",18:"#BFEAE0",20:"#DCE7AE"};
 const INK="#33414f";
+
+// ---------- Length color palettes (match the Layout Planner) ----------
+// 0 = Color (pastel "Sorbet"), 1 = High contrast, 2 = B & W (print).
+const PALETTES=["Color","High contrast","B & W (print)"];
+const HC_LEN={8:"#1F77B4",10:"#2CA02C",12:"#FF7F0E",14:"#9467BD",16:"#D62728",18:"#17BECF",20:"#8C564B"};
+const BW_LEN={8:"#FFFFFF",10:"#EEEEEE",12:"#DDDDDD",14:"#CCCCCC",16:"#BBBBBB",18:"#AAAAAA",20:"#999999"};
+function bestText(hex){ const r=parseInt(hex.substr(1,2),16),g=parseInt(hex.substr(3,2),16),b=parseInt(hex.substr(5,2),16);
+  return (0.299*r+0.587*g+0.114*b)>150?"#000000":"#FFFFFF"; }
+function lenFill(L){ const p=state.palette; return p===0?LCOLORS[L]:p===1?HC_LEN[L]:BW_LEN[L]; }
+function lenText(L){ return state.palette===0?INK:bestText(lenFill(L)); }
+function setPalette(v){ state.palette=+v; renderPalette(); renderLegend(); render(); }
+
 const TARGET=72, MAX_RECS=15;
 const MODE_TEXT={
   1:"Palette: tallies are built only from the lengths you check.",
@@ -166,7 +186,7 @@ const MODE_TEXT={
 };
 
 let state={
-  theme:"dark", tab:"recs",
+  theme:"dark", tab:"recs", palette:0,
   selected:new Set([16,20]),
   patterns:[],     // array of count objects {8:n,...}
   recs:[],         // {label, counts, pcs, ft, ok}
@@ -268,10 +288,10 @@ function clearOut(){
 function lenHeaders(kind){
   return LENGTHS.map(L=>{
     const isSorted=(kind==="rec"&&state.recSort===L)||(kind==="pat"&&state.patSort===L);
-    return `<th class="sortable${isSorted?" sorted":""}" style="background:${LCOLORS[L]};color:${INK}" onclick="sortBy('${kind}',${L})">${L}'</th>`;
+    return `<th class="sortable${isSorted?" sorted":""}" style="background:${lenFill(L)};color:${lenText(L)}" onclick="sortBy('${kind}',${L})">${L}'</th>`;
   }).join("");
 }
-function lenCell(v,L){ return `<td style="${v?`background:${LCOLORS[L]};color:${INK};font-weight:700`:""}">${v||""}</td>`; }
+function lenCell(v,L){ return `<td style="${v?`background:${lenFill(L)};color:${lenText(L)};font-weight:700`:""}">${v||""}</td>`; }
 
 function renderRecs(){
   const box=document.getElementById("recsBox");
@@ -335,12 +355,12 @@ function render(){ renderRecs(); renderPatterns(); }
 function renderPalette(){
   document.getElementById("palette").innerHTML=LENGTHS.map(L=>{
     const on=state.selected.has(L)?"checked":"";
-    return `<label class="prow"><input type="checkbox" ${on} onchange="toggleLen(${L},this.checked)"><span class="lchip" style="background:${LCOLORS[L]}">${L}'</span><span class="pname">${L} ft</span></label>`;
+    return `<label class="prow"><input type="checkbox" ${on} onchange="toggleLen(${L},this.checked)"><span class="lchip" style="background:${lenFill(L)};color:${lenText(L)}">${L}'</span><span class="pname">${L} ft</span></label>`;
   }).join("");
 }
 function toggleLen(L,on){ if(on) state.selected.add(L); else state.selected.delete(L); recommend(); }
 function onModeChange(){ document.getElementById("modeHint").textContent=MODE_TEXT[+document.getElementById("mode").value]; recommend(); }
-function renderLegend(){ document.getElementById("legend").innerHTML=LENGTHS.map(L=>`<span class="lswatch" style="background:${LCOLORS[L]}">${L}'</span>`).join(""); }
+function renderLegend(){ document.getElementById("legend").innerHTML=LENGTHS.map(L=>`<span class="lswatch" style="background:${lenFill(L)};color:${lenText(L)}">${L}'</span>`).join(""); }
 
 function renderHelp(){
   document.getElementById("helpBox").innerHTML=`
@@ -355,6 +375,8 @@ function renderHelp(){
     <p>Each row is a ready-to-load car: the piece count per length, total pieces, total feet (always rows × 72), and an OK check. <b>Click any length column header</b> to sort by that length, most first.</p>
     <h3>Row Patterns</h3>
     <p>Every way to fill a single 72-ft row from your lengths. Click a length header to sort. To hand-build a mixed car, type how many <b>Rows to use</b> of each pattern; the <b>YOUR HAND-BUILT TALLY</b> line totals the pieces per length and the row count — make the rows match your car size (10 or 14).</p>
+    <h3>Color palette</h3>
+    <p>Switch the <b>Length Colors</b> between <code>Color</code> (the pastel scheme), <code>High contrast</code> (saturated, maximally distinct), and <code>B &amp; W (print)</code> (grayscale) — the palette checkboxes, the legend, and every table recolor to match. Use <b>B &amp; W</b> for clean black-and-white printouts. (Matches the Layout Planner's Manifest palette.)</p>
     <h3>Notes</h3>
     <p>Only length controls the 72-ft fit; product and grade aren't part of this tool. Up to 15 recommendations and 101 row patterns are listed. This page runs entirely in your browser — nothing is uploaded, and there are no macros or security prompts.</p>
   `;
