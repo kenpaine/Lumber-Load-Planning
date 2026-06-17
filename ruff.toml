@@ -1,0 +1,9 @@
+# Conservative ruff config for this repo's Python build scripts.
+# These scripts (source/solver_v3.py, build_*.py) are written in a deliberately
+# compact style, so we only flag real bugs — pyflakes (F) + syntax errors (E9) —
+# rather than stylistic rules. Run `ruff check source/` to lint,
+# `ruff check --fix source/` to auto-fix (e.g. remove unused imports).
+target-version = "py313"
+
+[lint]
+select = ["F", "E9"]
