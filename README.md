@@ -28,7 +28,7 @@ car row must fill end‑to‑end to **exactly 72 ft**:
   the full visual load: it fills each row to 72 ft, groups like packs into columns, and
   prints a manifest.
 - **Tally Recommender** — you want to build a loadable car from scratch: pick the lengths
-  you want and it recommends complete **720‑ or 1008‑ft** tallies that fit, with selectable
+  you want and it recommends complete **720‑, 864‑ (mixed 7+5), or 1008‑ft** tallies that fit, with selectable
   match modes and click‑to‑sort tables.
 
 Each tool ships as a **macro‑enabled Excel workbook** and a **standalone browser app** (no
@@ -55,7 +55,8 @@ one landscape page. Light/dark theme throughout.
 
 **Step by step:**
 
-1. **Set the number of rows** — 10 (720 ft) or 14 (1008 ft).
+1. **Set the Car layout** — 5+5 (10 rows), **7+5 (mixed, 12 rows)**, or 7+7 (14 rows). On a
+   mixed 7+5 car each line gets a per‑line **Side** toggle (7‑row / 5‑row) so the sides solve independently.
 2. **Choose single or mixed** product/grade. In *single* mode you pick one Product + Grade once
    and only enter **Length + Packs** on each line; *mixed* lets every line differ.
 3. **Add your inventory** — pick a Length (and Product/Grade if mixed) and a pack count, then
@@ -76,8 +77,9 @@ color‑palette picker, all sized to one landscape page:
 ### Excel workbook — `Centerbeam_Lumber_Layout_Planner.xlsm`
 
 Macro‑enabled workbook with one‑click **Solve Layout** / **Clear Grid** / **Clear All**
-buttons, live **single product/grade** auto‑fill, and a built‑in **How to Use** tab.
-(Shown below in single‑product mode — the greyed Product/Grade columns are auto‑filled.)
+buttons, live **single product/grade** auto‑fill, a **Car layout** selector (5+5 / **7+5 mixed**
+/ 7+7), and a built‑in **How to Use** tab. (Shown below as a **mixed 7+5** car — column **A**
+is the colour‑coded **Side** selector, with 4×4 on the 7‑row side and 2×8 on the 5‑row side.)
 
 ![Centerbeam Lumber Layout Planner — Excel workbook](excel_screenshot.png)
 
