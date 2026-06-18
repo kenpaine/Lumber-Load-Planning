@@ -47,7 +47,9 @@
   .hint{font-size:11px;color:var(--text3);line-height:1.5}
   .legend{display:flex;flex-wrap:wrap;gap:5px}
   .lswatch{font-size:10px;font-weight:700;color:#33414f;padding:2px 7px;border-radius:3px}
-  .main{display:flex;flex-direction:column;overflow:hidden}
+  .main{display:flex;flex-direction:column;overflow:hidden;position:relative}
+  .cr{position:absolute;right:9px;bottom:7px;font-size:9px;letter-spacing:.02em;color:var(--text3);opacity:.3;pointer-events:none;user-select:none;z-index:2}
+  @media print{ .cr{display:none} }
   .tabbar{display:flex;gap:1px;padding:0 14px;background:var(--bg2);border-bottom:1px solid var(--border)}
   .tab{padding:8px 14px;font-size:12px;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;font-weight:500}
   .tab.active{color:var(--green2);border-bottom-color:var(--green)}
@@ -158,6 +160,7 @@
     <div class="tc active" id="tab-recs"><div id="recsBox"></div></div>
     <div class="tc" id="tab-patterns"><div id="patBox"></div></div>
     <div class="tc" id="tab-help"><div class="htext" id="helpBox"></div></div>
+    <div class="cr" title="© 2026 Ken Paine — all 72 feet reserved">© 2026 Ken Paine</div>
   </div>
 </div>
 
