@@ -194,6 +194,9 @@ def build_layout(path):
            "Need the building blocks or to hand-build a custom blend?   ->   see the 'Row Patterns' tab.",
            fill=NOTEF, italic=True)
 
+    # A faint, tongue-in-cheek copyright tucked at the bottom of the operating area.
+    put(rec, "A51", "© 2026 Ken Paine  ·  all 72 feet reserved", italic=True, size=8, color="C8C8C8")
+
     # ---- Row Patterns ----
     pat = wb.create_sheet("Row Patterns")
     setup_grid(pat)
