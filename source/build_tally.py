@@ -30,7 +30,7 @@ import sys
 import tempfile
 
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.worksheet.datavalidation import DataValidation
 
 # ----------------------------------------------------------------------------
@@ -141,46 +141,56 @@ def build_layout(path):
            fill=NAVY, color=WHITE, bold=True, size=16, align=CENTER)
     rec.row_dimensions[1].height = 30
     banner(rec, "A2:L2",
-           "Pick the lengths you want, choose a match mode and car size, then click Recommend Tallies.",
+           "Pick a car layout and match mode, check the lengths you want, then click Recommend Tallies. A mixed 7+5 car tallies each side separately.",
            italic=True, size=10, align=LEFT)
 
     banner(rec, "A4:B4", "SETTINGS", fill=HDRLT, bold=True)
-    put(rec, "A5", "Car size:", bold=True, align=RIGHT)
-    put(rec, "B5", "720 ft (10 rows)")
+    put(rec, "A5", "Car layout:", bold=True, align=RIGHT)
+    put(rec, "B5", "720 ft - 5+5 (10 rows)")
     put(rec, "A6", "Match mode:", bold=True, align=RIGHT)
     put(rec, "B6", "Each selected must appear")   # default match mode (mode 2)
     banner(rec, "A7:L7",
            "Palette = use only these lengths   /   Each must appear = every picked length shows up in the car   /   + fillers = may add other lengths to finish a 72-ft row",
            italic=True, size=9)
 
-    list_validation(rec, "B5", "720 ft (10 rows),1008 ft (14 rows)")
+    list_validation(rec, "B5", "720 ft - 5+5 (10 rows),864 ft - 7+5 mixed (12 rows),1008 ft - 7+7 (14 rows)")
     list_validation(rec, "B6", "Palette - use only selected,Each selected must appear,Each must appear + fillers")
 
-    banner(rec, "A9:B9", "LENGTH PALETTE", fill=HDRLT, bold=True)
+    banner(rec, "A9:C9", "LENGTH PALETTE", fill=HDRLT, bold=True)
     put(rec, "A10", "Length", bold=True, align=CENTER)
-    put(rec, "B10", "Include?  (check the box)", bold=True)
+    banner(rec, "B10:C10", "Check 7-row side  /  5-row side   (5-row only matters for a mixed 7+5 car)",
+           bold=True, size=9)
     for i, n in enumerate(LEN_NUMS):
         row = 11 + i
         put(rec, "A%d" % row, n, bold=True, fill=LC[i], align=CENTER)
-        # A Form Control checkbox (added in the COM stage) links to this cell as
-        # TRUE/FALSE; the ';;;' number format hides that text so only the box shows.
-        cb = put(rec, "B%d" % row, None, align=LEFT)
-        cb.number_format = ";;;"
+        # Two Form Control checkboxes (added in the COM stage) link to B (7-row /
+        # symmetric) and C (5-row) as TRUE/FALSE; ';;;' hides that text.
+        c7 = put(rec, "B%d" % row, None, align=LEFT)
+        c7.number_format = ";;;"
+        c5 = put(rec, "C%d" % row, None, align=LEFT)
+        c5.number_format = ";;;"
 
     put(rec, "A19", "Status:", bold=True)
     banner(rec, "B19:L19", "", fill=STATUSF)
     rec["B19"].alignment = Alignment(horizontal=LEFT, vertical="center", wrap_text=True)
     rec.row_dimensions[19].height = 28
 
-    banner(rec, "A21:L21", "RECOMMENDED FULL-CAR TALLIES   (click a length header 8'-20' to sort)",
-           fill=NAVY, color=WHITE, bold=True)
     rec_hdr = ["#", "Tally (how to load the car)", "8'", "10'", "12'", "14'", "16'",
                "18'", "20'", "Total pcs", "Total ft", "OK?"]
+    # Table A = the full car (symmetric) OR the 7-row side of a mixed car.
+    # Table B = the 5-row side of a mixed car (empty for symmetric). Both banner
+    # texts are set by the VBA at runtime to match the chosen car layout.
+    banner(rec, "A21:L21", "RECOMMENDED FULL-CAR TALLIES   (click a length header 8'-20' to sort)",
+           fill=NAVY, color=WHITE, bold=True)
     for c, txt in zip(COLS, rec_hdr):
         put(rec, "%s22" % c, txt, bold=True, fill=HDRLT)
     color_length_headers(rec, 22)
+    banner(rec, "A35:L35", "5-ROW SIDE TALLIES", fill=NAVY, color=WHITE, bold=True)
+    for c, txt in zip(COLS, rec_hdr):
+        put(rec, "%s36" % c, txt, bold=True, fill=HDRLT)
+    color_length_headers(rec, 36)
 
-    banner(rec, "A39:L39",
+    banner(rec, "A49:L49",
            "Need the building blocks or to hand-build a custom blend?   ->   see the 'Row Patterns' tab.",
            fill=NOTEF, italic=True)
 
@@ -208,7 +218,7 @@ def build_layout(path):
         "WHAT IT DOES",
         "A 72-ft centerbeam car is loaded in rows; every row must be filled end-to-end to exactly 72 ft.",
         "This tool finds the length combinations that fill a 72-ft row, then recommends complete car tallies",
-        "(720 ft = 10 rows, or 1008 ft = 14 rows) using the lengths you choose.",
+        "(720 ft = 10 rows, 864 ft = a mixed 7+5 car, or 1008 ft = 14 rows) using the lengths you choose.",
         "",
         "THE TABS",
         "Recommender  - set your options here and read the recommended full-car tallies.",
@@ -216,12 +226,12 @@ def build_layout(path):
         "How to Use   - this sheet.",
         "",
         "HOW TO USE (Recommender tab)",
-        "1.  Car size: pick 720 ft (10 rows) or 1008 ft (14 rows).",
+        "1.  Car layout: 5+5 (720 ft / 10 rows), 7+5 mixed (864 ft / 12 rows), or 7+7 (1008 ft / 14 rows).",
         "2.  Match mode:",
         "       - Palette - use only selected: tallies are built only from the lengths you turn on.",
         "       - Each selected must appear: every length you turn on must show up somewhere in the car.",
         "       - Each must appear + fillers: every selected length appears, other lengths may finish a row.",
-        "3.  Length palette: check the box for each length you want; clear it to leave that length out.",
+        "3.  Length palette: check each length you want. For a 7+5 car the 7-row and 5-row sides have separate checkboxes and are tallied independently (504 ft + 360 ft).",
         "4.  Click Recommend Tallies.",
         "",
         "RECOMMENDED FULL-CAR TALLIES (Recommender tab)",
@@ -250,9 +260,12 @@ def build_layout(path):
 
     # ---- consolidate numeric formatting across the data blocks ----
     # (count + total columns centered as integers; runtime VBA writes preserve it)
-    fmt_block(rec, "A23:A37", "0")
-    fmt_block(rec, "C23:K37", "0")
-    fmt_block(rec, "L23:L37")            # OK? is text, just center it
+    fmt_block(rec, "A23:A33", "0")
+    fmt_block(rec, "A37:A47", "0")
+    fmt_block(rec, "C23:K33", "0")
+    fmt_block(rec, "C37:K47", "0")
+    fmt_block(rec, "L23:L33")            # OK? is text, just center it
+    fmt_block(rec, "L37:L47")
     fmt_block(pat, "A3:A103", "0")
     fmt_block(pat, "C3:J103", "0")       # lengths (C-I) + Rows to use (J)
 
@@ -271,14 +284,14 @@ SHEET_EVENT = "\r\n".join([
     "End Sub",
 ])
 
-# Same click-to-sort idea on the Recommender tab: the recommendations header is
-# row 22, length columns C-I (3..9).
+# Click-to-sort on the Recommender tab: table A header is row 22, table B (the
+# 5-row side of a mixed car) header is row 36; length columns are C-I (3..9).
 REC_EVENT = "\r\n".join([
     "Private Sub Worksheet_SelectionChange(ByVal Target As Range)",
     "    If Target.Cells.Count <> 1 Then Exit Sub",
-    "    If Target.Row = 22 And Target.Column >= 3 And Target.Column <= 9 Then",
-    "        SortRecsBy Target.Column",
-    "    End If",
+    "    If Target.Column < 3 Or Target.Column > 9 Then Exit Sub",
+    "    If Target.Row = 22 Then SortRecsByRange Target.Column, 23, 33",
+    "    If Target.Row = 36 Then SortRecsByRange Target.Column, 37, 47",
     "End Sub",
 ])
 
@@ -359,19 +372,26 @@ def inject_macros(src_xlsx, out_xlsm):
                     left + 160, top, 90, 34, HDRLT, INK, NAVY)     # light secondary
         print("      .. buttons added; adding palette checkboxes", flush=True)
 
-        # length-palette checkboxes (replace the old Yes/No dropdowns). Each links
-        # to its B cell as TRUE/FALSE; the ';;;' format from the layout stage hides
-        # the text so only the box shows next to the colored length chip in col A.
+        # Two length-palette checkboxes per length: "7-row" linked to col B
+        # (also the symmetric palette) and "5-row" linked to col C, both within the
+        # wide B column so they sit together. Linked cells use the ';;;' format from
+        # the layout stage so only the boxes show next to the colored length chip.
         xl_on, xl_off = 1, -4146
-        default_checked = {16, 20}
+        d7 = {16, 20}   # default 7-row / symmetric checks
+        d5 = {16, 20}   # default 5-row checks
         for i, n in enumerate(LEN_NUMS):
             row = 11 + i
-            cell = rec.Range("B%d" % row)
-            cb = rec.CheckBoxes().Add(cell.Left + 2, cell.Top + 1, 16, 13)
-            cb.Caption = ""
-            cb.LinkedCell = "$B$%d" % row
-            cb.Value = xl_on if n in default_checked else xl_off
-            cell.Value = (n in default_checked)
+            cellB = rec.Range("B%d" % row)
+            cb7 = rec.CheckBoxes().Add(cellB.Left + 4, cellB.Top + 1, 56, 15)
+            cb7.Caption = "7-row"
+            cb7.LinkedCell = "$B$%d" % row
+            cb7.Value = xl_on if n in d7 else xl_off
+            rec.Range("B%d" % row).Value = (n in d7)
+            cb5 = rec.CheckBoxes().Add(cellB.Left + 92, cellB.Top + 1, 56, 15)
+            cb5.Caption = "5-row"
+            cb5.LinkedCell = "$C$%d" % row
+            cb5.Value = xl_on if n in d5 else xl_off
+            rec.Range("C%d" % row).Value = (n in d5)
         print("      .. checkboxes added; seeding (Run)", flush=True)
 
         # seed an example run so the file is populated on open

@@ -103,9 +103,11 @@ Manifest. Light / dark theme.
 
 ### Excel workbook — `Centerbeam_Tally_Recommender.xlsm`
 
-Macro‑enabled workbook with a checkbox length palette, colored **Recommend Tallies** /
-**Clear** buttons, a sortable recommendations table, a **Row Patterns** tab, and a built‑in
-**How to Use** tab. Click *Enable Content* on open.
+Macro‑enabled workbook with a checkbox length palette, a **Car layout** selector
+(5+5 / **7+5 mixed** / 7+7), colored **Recommend Tallies** / **Clear** buttons, sortable
+recommendation tables, a **Row Patterns** tab, and a built‑in **How to Use** tab. For a
+**mixed 7+5** car it shows a 7‑row‑side checkbox column and a 5‑row‑side column and
+recommends each side independently (504 ft + 360 ft). Click *Enable Content* on open.
 
 ![Centerbeam Tally Recommender — Excel workbook](tally_excel_screenshot.png)
 
@@ -134,7 +136,7 @@ Macro‑enabled workbook with a checkbox length palette, colored **Recommend Tal
 
 | File | What it is |
 |------|-----------|
-| `Centerbeam_Tally_Recommender.xlsm` | **Tally Recommender (Excel).** Pick lengths → recommended full‑car tallies. Checkbox palette, three match modes, both car sizes, sortable tables, and a **Row Patterns** tab. Click *Enable Content* on open. |
+| `Centerbeam_Tally_Recommender.xlsm` | **Tally Recommender (Excel).** Pick lengths → recommended full‑car tallies. Checkbox palette, three match modes, a **Car layout** selector (5+5 / **7+5 mixed** / 7+7 — mixed tallies each side separately), sortable tables, and a **Row Patterns** tab. Click *Enable Content* on open. |
 | `centerbeam_tally_recommender.html` | **Tally Recommender (browser).** The same recommender — no install, no macros, no security prompts. Includes a **color palette** picker (Color / High contrast / B & W for printing). |
 | `Centerbeam_Lumber_Layout_Planner.xlsm` | **Layout Planner (Excel).** Macro‑enabled workbook with **Solve Layout / Clear Grid / Clear All** buttons, live single product/grade auto‑fill, and a **How to Use** tab. Click *Enable Content* on open. |
 | `Centerbeam_Lumber_Layout_Planner.xlsx` | **Layout Planner (macro‑free).** A native replica of the workbook: **formula‑driven single product/grade auto‑fill**, dropdowns, the colored layout grid, and the same **How to Use** tab. Solving is done in the `.xlsm` or the browser app — a `.xlsx` cannot run a solver. |

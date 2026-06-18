@@ -1,8 +1,14 @@
 Option Explicit
 
 ' ===== Centerbeam 72-ft Car - Lumber Tally Recommender =====
-' Tab 'Recommender' : settings, palette, recommended full-car tallies.
+' Tab 'Recommender' : settings, two length palettes, recommended tallies (two tables).
 ' Tab 'Row Patterns': every 72-ft row pattern (building blocks) + hand-build total.
+'
+' Car layout (B5): 5+5 (720 ft / 10 rows), 7+5 (864 ft / 12, mixed), 7+7 (1008 / 14).
+' Symmetric cars use one combined palette (union of the two columns) and write the
+' full-car tallies into table A. A mixed 7+5 car tallies each side INDEPENDENTLY: the
+' 7-row side (504 ft) from the column-B palette into table A, and the 5-row side
+' (360 ft) from the column-C palette into table B.
 '
 ' Loaded into the workbook by source/build_tally.py via CodeModule.AddFromString.
 
@@ -11,15 +17,57 @@ Private Const PAT_SHEET As String = "Row Patterns"
 Private Const CAR_CELL As String = "B5"
 Private Const MODE_CELL As String = "B6"
 Private Const PAL_FIRST As Integer = 11
+Private Const PAL7_COL As Integer = 2          ' column B = 7-row side / symmetric
+Private Const PAL5_COL As Integer = 3          ' column C = 5-row side (mixed)
 Private Const STATUS_CELL As String = "B19"
-Private Const REC_TOP As Integer = 23
-Private Const REC_MAX As Integer = 37
-Private Const PAT_HDR As Integer = 2
+Private Const RECA_BANNER As String = "A21"
+Private Const RECA_TOP As Integer = 23
+Private Const RECA_MAX As Integer = 33
+Private Const RECB_BANNER As String = "A35"
+Private Const RECB_TOP As Integer = 37
+Private Const RECB_MAX As Integer = 47
 Private Const PAT_TOP As Integer = 3
 Private Const PAT_MAX As Integer = 103
 
 Private Function Lengths() As Variant
     Lengths = Array(8, 10, 12, 14, 16, 18, 20)
+End Function
+
+Private Sub CarLayout(ws As Worksheet, ByRef aRows As Integer, ByRef bRows As Integer, ByRef mixed As Boolean)
+    Dim t As String: t = CStr(ws.Range(CAR_CELL).Value)
+    If InStr(t, "7+5") > 0 Or InStr(t, "864") > 0 Then
+        aRows = 7: bRows = 5: mixed = True
+    ElseIf InStr(t, "7+7") > 0 Or InStr(t, "1008") > 0 Or InStr(t, "14") > 0 Then
+        aRows = 7: bRows = 7: mixed = False
+    Else
+        aRows = 5: bRows = 5: mixed = False
+    End If
+End Sub
+
+Private Function ReadMode(ws As Worksheet) As Integer
+    Dim modeTxt As String: modeTxt = LCase(CStr(ws.Range(MODE_CELL).Value))
+    If InStr(modeTxt, "filler") > 0 Then
+        ReadMode = 3
+    ElseIf InStr(modeTxt, "each") > 0 Or InStr(modeTxt, "must") > 0 Then
+        ReadMode = 2
+    Else
+        ReadMode = 1
+    End If
+End Function
+
+Private Sub ReadPalette(ws As Worksheet, col As Integer, ByRef sel() As Boolean)
+    Dim i As Integer, pv As Variant
+    For i = 0 To 6
+        pv = ws.Cells(PAL_FIRST + i, col).Value
+        sel(i) = (pv = True) Or (UCase(Trim(CStr(pv & ""))) = "TRUE") Or (UCase(Trim(CStr(pv & ""))) = "YES")
+    Next i
+End Sub
+
+Private Function AnyTrue(sel() As Boolean) As Boolean
+    Dim i As Integer
+    For i = 0 To 6
+        If sel(i) Then AnyTrue = True: Exit Function
+    Next i
 End Function
 
 Public Sub RecommendTallies()
@@ -29,61 +77,103 @@ Public Sub RecommendTallies()
     Application.ScreenUpdating = False
 
     Dim L As Variant: L = Lengths()
-    Dim i As Integer
+    Dim aRows As Integer, bRows As Integer, mixed As Boolean
+    CarLayout ws, aRows, bRows, mixed
+    Dim mode As Integer: mode = ReadMode(ws)
 
-    Dim carRows As Integer, carTxt As String
-    carTxt = CStr(ws.Range(CAR_CELL).Value)
-    If InStr(carTxt, "1008") > 0 Or InStr(carTxt, "14") > 0 Then carRows = 14 Else carRows = 10
-
-    Dim modeTxt As String, mode As Integer
-    modeTxt = LCase(CStr(ws.Range(MODE_CELL).Value))
-    If InStr(modeTxt, "filler") > 0 Then
-        mode = 3
-    ElseIf InStr(modeTxt, "each") > 0 Or InStr(modeTxt, "must") > 0 Then
-        mode = 2
-    Else
-        mode = 1
-    End If
-
-    ' Palette column B holds each checkbox's linked TRUE/FALSE (hidden via ';;;').
-    ' Stay tolerant of legacy "Yes"/"True" text in case of an older sheet.
-    Dim sel(0 To 6) As Boolean, anySel As Boolean
-    Dim pv As Variant
-    For i = 0 To 6
-        pv = ws.Cells(PAL_FIRST + i, 2).Value
-        sel(i) = (pv = True) Or (UCase(Trim(CStr(pv & ""))) = "TRUE") Or (UCase(Trim(CStr(pv & ""))) = "YES")
-        If sel(i) Then anySel = True
-    Next i
+    Dim sel7(0 To 6) As Boolean, sel5(0 To 6) As Boolean
+    ReadPalette ws, PAL7_COL, sel7
+    ReadPalette ws, PAL5_COL, sel5
 
     ClearOutputs ws, ws2
 
-    If Not anySel Then
-        ws.Range(STATUS_CELL).Value = "Check at least one length box, then click Recommend Tallies."
-        Application.ScreenUpdating = True
-        Exit Sub
+    If mixed Then
+        ws.Range(RECA_BANNER).Value = "7-ROW SIDE TALLIES   -   504 ft  (click a length header 8'-20' to sort)"
+        ws.Range(RECB_BANNER).Value = "5-ROW SIDE TALLIES   -   360 ft  (click a length header 8'-20' to sort)"
+        Dim okA As Boolean, okB As Boolean
+        okA = RecommendInto(ws, L, sel7, 7, mode, RECA_TOP, RECA_MAX)
+        okB = RecommendInto(ws, L, sel5, 5, mode, RECB_TOP, RECB_MAX)
+        ' Row Patterns tab: union of both sides as a reference
+        Dim u(0 To 6) As Boolean, i As Integer
+        For i = 0 To 6: u(i) = sel7(i) Or sel5(i): Next i
+        WriteUnionPatterns ws2, L, u, mode
+        If AnyTrue(sel7) And AnyTrue(sel5) Then
+            ws.Range(STATUS_CELL).Value = "Mixed 7+5 car: the 7-row side (504 ft) and 5-row side (360 ft) are tallied independently below. Check lengths for each side in its own palette column."
+        Else
+            ws.Range(STATUS_CELL).Value = "Mixed 7+5 car: check lengths for BOTH sides (7-row side = column B palette, 5-row side = column C palette)."
+        End If
+    Else
+        ws.Range(RECA_BANNER).Value = "RECOMMENDED FULL-CAR TALLIES   (click a length header 8'-20' to sort)"
+        ws.Range(RECB_BANNER).Value = "(switch Car layout to 7+5 for a mixed / asymmetric car - each side tallied separately)"
+        Dim sel(0 To 6) As Boolean
+        For i = 0 To 6: sel(i) = sel7(i) Or sel5(i): Next i
+        If Not AnyTrue(sel) Then
+            ws.Range(STATUS_CELL).Value = "Check at least one length box, then click Recommend Tallies."
+            Application.ScreenUpdating = True: Exit Sub
+        End If
+        Dim okAll As Boolean
+        okAll = RecommendInto(ws, L, sel, aRows + bRows, mode, RECA_TOP, RECA_MAX)
+        WriteUnionPatterns ws2, L, sel, mode
+        Dim carFt As Long: carFt = (aRows + bRows) * 72
+        If okAll Then
+            ws.Range(STATUS_CELL).Value = "Recommended for a " & carFt & "-ft car (" & (aRows + bRows) & " rows). Row patterns are on the 'Row Patterns' tab."
+        Else
+            ws.Range(STATUS_CELL).Value = "No single- or two-pattern car covers every selected length. Try 'Palette' mode, or hand-build on the 'Row Patterns' tab."
+        End If
     End If
 
+    Application.ScreenUpdating = True
+End Sub
+
+' Enumerate this selection's 72-ft row patterns and write recommended tallies for
+' `rows` rows into the table region [top..maxr]. Returns True if any tally written.
+Private Function RecommendInto(ws As Worksheet, L As Variant, sel() As Boolean, ByVal rows As Long, _
+                               ByVal mode As Integer, ByVal top As Long, ByVal maxr As Long) As Boolean
+    Dim i As Integer
+    If Not AnyTrue(sel) Then Exit Function
+
     Dim allow(0 To 6) As Boolean
-    For i = 0 To 6
-        If mode = 3 Then allow(i) = True Else allow(i) = sel(i)
-    Next i
+    For i = 0 To 6: allow(i) = IIf(mode = 3, True, sel(i)): Next i
 
     Dim patterns() As Variant: ReDim patterns(1 To 250)
     Dim nPat As Long: nPat = 0
     Dim cur(0 To 6) As Integer
     EnumRows L, allow, 0, 72, cur, patterns, nPat
+    If nPat = 0 Then Exit Function
 
-    If nPat = 0 Then
-        ws.Range(STATUS_CELL).Value = "No 72-ft row can be built from those lengths. Add another length and try again."
-        Application.ScreenUpdating = True
-        Exit Sub
+    Dim r As Long: r = top
+    Dim p As Long, a As Long, b As Long
+    For p = 1 To nPat
+        If r > maxr Then Exit For
+        Dim cnt As Variant: cnt = patterns(p)
+        If CarCovers(cnt, cnt, sel, mode) Then
+            Dim comb As Variant: ReDim comb(0 To 6)
+            For i = 0 To 6: comb(i) = cnt(i) * rows: Next i
+            WriteRecCounts ws, r, top, "All " & rows & " rows:  " & RowLabel(L, cnt), L, comb, rows
+            r = r + 1
+        End If
+    Next p
+    If mode >= 2 Then
+        For a = 1 To nPat
+            If r > maxr Then Exit For
+            For b = a + 1 To nPat
+                If r > maxr Then Exit For
+                Dim ca As Variant: ca = patterns(a)
+                Dim cb As Variant: cb = patterns(b)
+                If CarCovers(ca, cb, sel, mode) Then
+                    Dim na As Integer, nb As Integer
+                    na = rows \ 2: If na < 1 Then na = 1
+                    nb = rows - na
+                    Dim comb2 As Variant: ReDim comb2(0 To 6)
+                    For i = 0 To 6: comb2(i) = ca(i) * na + cb(i) * nb: Next i
+                    WriteRecCounts ws, r, top, na & " rows (" & RowLabel(L, ca) & ")  +  " & nb & " rows (" & RowLabel(L, cb) & ")", L, comb2, rows
+                    r = r + 1
+                End If
+            Next b
+        Next a
     End If
-
-    WritePatterns ws2, L, patterns, nPat
-    BuildRecommendations ws, L, sel, patterns, nPat, carRows, mode
-
-    Application.ScreenUpdating = True
-End Sub
+    RecommendInto = (r > top)
+End Function
 
 Private Sub EnumRows(L As Variant, allow() As Boolean, idx As Integer, remaining As Integer, _
                      ByRef cur() As Integer, ByRef patterns() As Variant, ByRef nPat As Long)
@@ -132,6 +222,17 @@ Private Function ColL(ByVal c As Integer) As String
     ColL = s
 End Function
 
+Private Sub WriteUnionPatterns(ws2 As Worksheet, L As Variant, sel() As Boolean, mode As Integer)
+    Dim i As Integer
+    Dim allow(0 To 6) As Boolean
+    For i = 0 To 6: allow(i) = IIf(mode = 3, True, sel(i)): Next i
+    Dim patterns() As Variant: ReDim patterns(1 To 250)
+    Dim nPat As Long: nPat = 0
+    Dim cur(0 To 6) As Integer
+    EnumRows L, allow, 0, 72, cur, patterns, nPat
+    WritePatterns ws2, L, patterns, nPat
+End Sub
+
 Private Sub WritePatterns(ws2 As Worksheet, L As Variant, patterns() As Variant, nPat As Long)
     Dim r As Long, p As Long, i As Integer, shown As Long
     r = PAT_TOP: shown = 0
@@ -145,12 +246,11 @@ Private Sub WritePatterns(ws2 As Worksheet, L As Variant, patterns() As Variant,
         Next i
         r = r + 1: shown = shown + 1
     Next p
+    If shown = 0 Then Exit Sub
 
     Dim lastPat As Long: lastPat = PAT_TOP + shown - 1
-    ' Rows-to-use input column is now J (the Pcs/Ft columns were removed)
     ws2.Range("J" & PAT_TOP & ":J" & lastPat).Interior.Color = RGB(255, 247, 214)
 
-    ' Builder total placed directly below the last pattern row (reactive to row count)
     Dim br As Long: br = lastPat + 1
     ws2.Cells(br, 2).Value = "YOUR HAND-BUILT TALLY (set 'Rows to use' above):"
     For i = 0 To 6
@@ -167,7 +267,6 @@ Private Sub WritePatterns(ws2 As Worksheet, L As Variant, patterns() As Variant,
 End Sub
 
 Public Sub SortPatternsBy(ByVal sortCol As Long)
-    ' Click a length header (8'..20') to sort the pattern grid by that length, most first.
     Dim ws2 As Worksheet: Set ws2 = ThisWorkbook.Worksheets(PAT_SHEET)
     Dim lastPat As Long: lastPat = PAT_TOP - 1
     Dim r As Long: r = PAT_TOP
@@ -176,7 +275,6 @@ Public Sub SortPatternsBy(ByVal sortCol As Long)
         lastPat = r: r = r + 1
     Loop
     If lastPat <= PAT_TOP Then Exit Sub
-
     On Error GoTo cleanup
     Application.EnableEvents = False
     With ws2.Sort
@@ -195,79 +293,37 @@ cleanup:
     Application.EnableEvents = True
 End Sub
 
-Public Sub SortRecsBy(ByVal sortCol As Long)
-    ' Click a length header (8'..20') on the Recommender tab to sort the
-    ' recommended full-car tallies by that length, most first.
+' Sort one recommendation table (top..max) by a length column, most first.
+Public Sub SortRecsByRange(ByVal sortCol As Long, ByVal top As Long, ByVal maxr As Long)
     Dim ws As Worksheet: Set ws = ThisWorkbook.Worksheets(REC_SHEET)
-    Dim lastRow As Long: lastRow = REC_TOP - 1
-    Dim r As Long: r = REC_TOP
-    Do While r <= REC_MAX
+    Dim lastRow As Long: lastRow = top - 1
+    Dim r As Long: r = top
+    Do While r <= maxr
         If Len(CStr(ws.Cells(r, 1).Value)) = 0 Then Exit Do
         lastRow = r: r = r + 1
     Loop
-    If lastRow <= REC_TOP Then Exit Sub
-
+    If lastRow <= top Then Exit Sub
     On Error GoTo cleanup
     Application.EnableEvents = False
     With ws.Sort
         .SortFields.Clear
-        .SortFields.Add Key:=ws.Range(ColL(CInt(sortCol)) & REC_TOP & ":" & ColL(CInt(sortCol)) & lastRow), _
+        .SortFields.Add Key:=ws.Range(ColL(CInt(sortCol)) & top & ":" & ColL(CInt(sortCol)) & lastRow), _
                         SortOn:=xlSortOnValues, Order:=xlDescending, DataOption:=xlSortNormal
-        .SetRange ws.Range("B" & REC_TOP & ":L" & lastRow)
+        .SetRange ws.Range("B" & top & ":L" & lastRow)
         .Header = xlNo
         .Apply
     End With
     Dim k As Long
-    For k = REC_TOP To lastRow
-        ws.Cells(k, 1).Value = k - REC_TOP + 1
+    For k = top To lastRow
+        ws.Cells(k, 1).Value = k - top + 1
     Next k
 cleanup:
     Application.EnableEvents = True
 End Sub
 
-Private Sub BuildRecommendations(ws As Worksheet, L As Variant, sel() As Boolean, _
-                                 patterns() As Variant, nPat As Long, carRows As Integer, mode As Integer)
-    Dim r As Long: r = REC_TOP
-    Dim p As Long, a As Long, b As Long, i As Integer
-
-    For p = 1 To nPat
-        If r > REC_MAX Then Exit For
-        Dim cnt As Variant: cnt = patterns(p)
-        If CarCovers(cnt, cnt, sel, mode) Then
-            Dim comb As Variant: ReDim comb(0 To 6)
-            For i = 0 To 6: comb(i) = cnt(i) * carRows: Next i
-            WriteRecCounts ws, r, "All " & carRows & " rows:  " & RowLabel(L, cnt), L, comb, carRows
-            r = r + 1
-        End If
-    Next p
-
-    If mode >= 2 Then
-        For a = 1 To nPat
-            If r > REC_MAX Then Exit For
-            For b = a + 1 To nPat
-                If r > REC_MAX Then Exit For
-                Dim ca As Variant: ca = patterns(a)
-                Dim cb As Variant: cb = patterns(b)
-                If CarCovers(ca, cb, sel, mode) Then
-                    Dim na As Integer, nb As Integer
-                    na = carRows \ 2: If na < 1 Then na = 1
-                    nb = carRows - na
-                    Dim comb2 As Variant: ReDim comb2(0 To 6)
-                    For i = 0 To 6: comb2(i) = ca(i) * na + cb(i) * nb: Next i
-                    WriteRecCounts ws, r, na & " rows (" & RowLabel(L, ca) & ")  +  " & nb & " rows (" & RowLabel(L, cb) & ")", L, comb2, carRows
-                    r = r + 1
-                End If
-            Next b
-        Next a
-    End If
-
-    Dim made As Long: made = r - REC_TOP
-    Dim carFt As Long: carFt = carRows * 72
-    If made = 0 Then
-        ws.Range(STATUS_CELL).Value = "No single- or two-pattern car covers every selected length. Add a length, try 'Palette' mode, or hand-build on the 'Row Patterns' tab.  (" & nPat & " row patterns found.)"
-    Else
-        ws.Range(STATUS_CELL).Value = made & " tally(ies) recommended for a " & carFt & "-ft car (" & carRows & " rows).  " & nPat & " valid 72-ft row patterns are on the 'Row Patterns' tab."
-    End If
+' Back-compat shim (older sheet event) -> sort table A.
+Public Sub SortRecsBy(ByVal sortCol As Long)
+    SortRecsByRange sortCol, RECA_TOP, RECA_MAX
 End Sub
 
 Private Function CarCovers(ca As Variant, cb As Variant, sel() As Boolean, mode As Integer) As Boolean
@@ -279,8 +335,8 @@ Private Function CarCovers(ca As Variant, cb As Variant, sel() As Boolean, mode 
     CarCovers = True
 End Function
 
-Private Sub WriteRecCounts(ws As Worksheet, r As Long, label As String, L As Variant, comb As Variant, carRows As Integer)
-    ws.Cells(r, 1).Value = r - REC_TOP + 1
+Private Sub WriteRecCounts(ws As Worksheet, ByVal r As Long, ByVal top As Long, label As String, L As Variant, comb As Variant, ByVal rows As Long)
+    ws.Cells(r, 1).Value = r - top + 1
     ws.Cells(r, 2).Value = label
     Dim i As Integer, pcs As Long, ft As Long
     pcs = 0: ft = 0
@@ -291,11 +347,12 @@ Private Sub WriteRecCounts(ws As Worksheet, r As Long, label As String, L As Var
     Next i
     ws.Cells(r, 10).Value = pcs
     ws.Cells(r, 11).Value = ft
-    ws.Cells(r, 12).Value = IIf(ft = carRows * 72, "OK", "check")
+    ws.Cells(r, 12).Value = IIf(ft = rows * 72, "OK", "check")
 End Sub
 
 Private Sub ClearOutputs(ws As Worksheet, ws2 As Worksheet)
-    ws.Range("A" & REC_TOP & ":L" & REC_MAX).ClearContents
+    ws.Range("A" & RECA_TOP & ":L" & RECA_MAX).ClearContents
+    ws.Range("A" & RECB_TOP & ":L" & RECB_MAX).ClearContents
     Dim rng As Range
     Set rng = ws2.Range("A" & PAT_TOP & ":L" & (PAT_MAX + 20))
     rng.ClearContents
