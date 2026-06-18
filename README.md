@@ -91,7 +91,8 @@ Pick the lengths you want and the tool recommends **complete, loadable full‑ca
 ### Browser app — `centerbeam_tally_recommender.html`
 
 No install, no macros, no security prompts — open it in any browser. The full engine: the
-checkbox length palette, all three match modes, both car sizes, click‑to‑sort tables, and a
+checkbox length palette, all three match modes, all car layouts (incl. a **mixed 7+5** car
+that tallies each side independently), click‑to‑sort tables, and a
 live hand‑build total. A **color palette** picker (Color / High contrast / **B & W for
 printing**) recolors the length swatches, legend, and tables — matching the Layout Planner's
 Manifest. Light / dark theme.
@@ -115,7 +116,9 @@ Macro‑enabled workbook with a checkbox length palette, colored **Recommend Tal
   - *Palette — use only selected:* tallies use only the checked lengths.
   - *Each selected must appear* (default): every checked length shows up somewhere in the car.
   - *Each must appear + fillers:* every checked length appears; other lengths may finish a row.
-- **Car size** — 720 ft (10 rows) or 1008 ft (14 rows).
+- **Car layout** — 720 ft (5+5, 10 rows), **864 ft (7+5 mixed, 12 rows)**, or 1008 ft (7+7, 14 rows).
+  A **mixed 7+5** car loads its two sides to different heights, so the browser app gives each
+  side its own length palette and its own recommended tally (7-row side = 504 ft, 5-row = 360 ft).
 - **Recommended Full‑Car Tallies** — ready‑to‑load cars: piece count per length, total
   pieces, total feet (always rows × 72), and an OK check. **Click any length header to sort.**
 - **Row Patterns** — every way to fill a single 72‑ft row from your lengths (the building
