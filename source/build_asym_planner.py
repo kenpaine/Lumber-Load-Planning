@@ -57,6 +57,26 @@ def row_products(ws, r):
     return out
 
 
+def bgr(r, g, b):
+    return r + (g << 8) + (b << 16)   # Excel .Interior.Color is BGR-ordered
+
+
+# Double-click a Side cell (A10:A29) to flip 7-row <-> 5-row.
+DBLCLICK_CODE = "\r\n".join([
+    "Private Sub Worksheet_BeforeDoubleClick(ByVal Target As Range, Cancel As Boolean)",
+    "    If Intersect(Target, Me.Range(\"A10:A29\")) Is Nothing Then Exit Sub",
+    "    Cancel = True",
+    "    Application.EnableEvents = False",
+    "    If InStr(CStr(Target.Value), \"7\") > 0 Then",
+    "        Target.Value = \"5-row\"",
+    "    Else",
+    "        Target.Value = \"7-row\"",
+    "    End If",
+    "    Application.EnableEvents = True",
+    "End Sub",
+])
+
+
 def main():
     excel = win32.DispatchEx("Excel.Application")
     excel.Visible = False
@@ -81,12 +101,28 @@ def main():
                 ws.Range("C5").Value = "5+5"
             print("  C5 (car layout) ->", ws.Range("C5").Value)
 
-            ws.Range("N9").Value = "Side"
-            ws.Range("N9").Font.Bold = True
-            setval(ws.Range("N10:N29"), "7-row side,5-row side")
-            ws.Range("N10:N29").Interior.Color = 0xF0F4E8
-            ws.Columns("N").ColumnWidth = 12
-            print("  added Side column (N)")
+            # Side selector lives in column A (the old decorative "#" line numbers),
+            # just left of Product: a colour-coded dropdown (green = 7-row, amber = 5-row)
+            # that you can also double-click to flip.
+            ws.Range("A9").Value = "Side"
+            ws.Range("A9").Font.Bold = True
+            ws.Range("A10:A29").ClearContents()          # drop the 1-20 line numbers
+            setval(ws.Range("A10:A29"), "7-row,5-row")
+            cf = ws.Range("A10:A29")
+            try:
+                cf.FormatConditions.Delete()
+            except Exception:
+                pass
+            g = cf.FormatConditions.Add(1, 3, '="7-row"')   # xlCellValue, xlEqual
+            g.Interior.Color = bgr(198, 239, 206)           # light green = 7-row
+            am = cf.FormatConditions.Add(1, 3, '="5-row"')
+            am.Interior.Color = bgr(255, 229, 153)          # light amber = 5-row
+            ws.Columns("A").ColumnWidth = 7
+            scm = wb.VBProject.VBComponents(ws.CodeName).CodeModule
+            existing = scm.Lines(1, scm.CountOfLines) if scm.CountOfLines > 0 else ""
+            if "Worksheet_BeforeDoubleClick" not in existing:
+                scm.AddFromString(DBLCLICK_CODE)            # double-click a Side cell to flip
+            print("  Side moved to column A (colour-coded) + double-click-to-flip")
 
             vbp = wb.VBProject
             inject(vbp, "CenterbeamSolver", read_code(SOLVER))
@@ -115,15 +151,15 @@ def main():
             ws = wb2.Worksheets("Planner")
             ws.Range("C7").Value = "No"
             excel.Run("ApplySingleMode")
+            ws.Range("A10:A29").ClearContents()      # Side column (A)
             ws.Range("B10:E29").ClearContents()      # inputs (B-E are not merged)
-            ws.Range("N10:N29").ClearContents()      # Side column (N is free of the status box)
             ws.Range("C5").Value = "7+5"
+            ws.Cells(10, 1).Value = "7-row"            # Side (col A)
             ws.Cells(10, 2).Value = "4x4"; ws.Cells(10, 3).Value = 12
-            ws.Cells(10, 4).Value = "2";   ws.Cells(10, 5).Value = 42
-            ws.Cells(10, 14).Value = "7-row side"      # 7 x 72 = 504 ft
+            ws.Cells(10, 4).Value = "2";   ws.Cells(10, 5).Value = 42   # 7 x 72 = 504 ft
+            ws.Cells(11, 1).Value = "5-row"
             ws.Cells(11, 2).Value = "2x8"; ws.Cells(11, 3).Value = 12
-            ws.Cells(11, 4).Value = "MSR"; ws.Cells(11, 5).Value = 30
-            ws.Cells(11, 14).Value = "5-row side"      # 5 x 72 = 360 ft
+            ws.Cells(11, 4).Value = "MSR"; ws.Cells(11, 5).Value = 30   # 5 x 72 = 360 ft
             excel.Run("SolveLayoutQuiet")
 
             sideA, sideB = set(), set()

@@ -49,6 +49,14 @@
   .iitem .ilabel{flex:1}.iitem .icount{color:var(--text3);font-size:11px}
   .brem{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px}
   .brem:hover{color:var(--red2)}
+  /* per-line side toggle (mixed cars): color-coded 7|5 segmented control, left of the pack */
+  .sideseg{display:inline-flex;border-radius:5px;overflow:hidden;border:1px solid var(--border);flex:0 0 auto;user-select:none}
+  .sideseg .seg{font-size:10px;font-weight:800;padding:2px 6px;cursor:pointer;color:var(--text3);background:var(--bg2);line-height:1.35;transition:background .1s}
+  .sideseg .seg:hover{color:var(--text)}
+  .sideseg .seg.on7{background:#2f7d4f;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.25)}
+  .sideseg .seg.on5{background:#c2812f;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.25)}
+  .sideseg-lg{width:100%}
+  .sideseg-lg .seg{flex:1;text-align:center;font-size:13px;padding:8px 0}
   .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
   .sc{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:7px 9px}
   .sc .sl{font-size:9px;color:var(--text3);text-transform:uppercase}
@@ -160,7 +168,11 @@
       <div id="addProdField"><label>Product</label><select id="addProduct"></select></div>
       <div id="addLenField"><label>Length</label><select id="addLength"></select></div>
       <div id="addGradeField"><label>Grade</label><select id="addGrade"></select></div>
-      <div id="addSideField" style="display:none"><label>Side</label><select id="addSide"><option value="7">7‑row side</option><option value="5">5‑row side</option></select></div>
+      <div id="addSideField" class="full" style="display:none"><label>Side — which row height</label>
+        <div class="sideseg sideseg-lg" id="addSideToggle">
+          <b class="seg on7" onclick="setAddSide(7)">7‑row side</b><b class="seg" onclick="setAddSide(5)">5‑row side</b>
+        </div>
+      </div>
       <div id="addQtyField"><label>Packs</label><input type="number" id="addQty" value="1" min="1" max="999"></div>
       <div class="full" id="singleHint" style="display:none;font-size:11px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 8px"></div>
       <button class="btn primary full" onclick="addItem()">+ Add to Inventory</button>
@@ -258,7 +270,7 @@ function packBorder(c){ return state.palette===0?PCOLORS[c.product]:"#000000"; }
 function packText(c){ return state.palette===0?GFONT[c.grade]:bestText(lenFill(c.length)); }
 function setPalette(v){ state.palette=+v; renderManifest(); }
 
-let state={numRows:10,carLayout:"5+5",split:{aRows:5,bRows:5,aTag:5,bTag:5,mixed:false},items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2",palette:0};
+let state={numRows:10,carLayout:"5+5",split:{aRows:5,bRows:5,aTag:5,bTag:5,mixed:false},addSide:7,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2",palette:0};
 
 // ---------- per-side car model ----------
 // The car has two sides whose row heights can differ: 5+5 (10), 7+5 (12, mixed),
@@ -377,7 +389,8 @@ function reconfigure(){ state.carLayout=document.getElementById("carLayout").val
 function normalizeSides(){ const S=layoutSides(state.carLayout);
   for(const it of state.items){ if(!S.mixed) it.side=S.aTag; else if(it.side!==5 && it.side!==7) it.side=defaultSideTag(state.carLayout); } }
 function syncSideUI(){ const mixed=layoutSides(state.carLayout).mixed;
-  const f=document.getElementById("addSideField"); if(f) f.style.display=mixed?"":"none"; }
+  const f=document.getElementById("addSideField"); if(f) f.style.display=mixed?"":"none";
+  if(mixed) setAddSide(state.addSide); }
 function addItem(){
   const product=state.singleMode?state.singleProduct:document.getElementById("addProduct").value;
   const length=parseInt(document.getElementById("addLength").value);
@@ -385,12 +398,13 @@ function addItem(){
   const qty=parseInt(document.getElementById("addQty").value)||0;
   if(qty<1) return;
   const S=layoutSides(state.carLayout);
-  const side=S.mixed?parseInt(document.getElementById("addSide").value):S.aTag;
+  const side=S.mixed?state.addSide:S.aTag;
   const ex=state.items.find(it=>it.product===product&&it.length===length&&it.grade===grade&&it.side===side);
   if(ex) ex.qty+=qty; else state.items.push({product,length,grade,qty,side});
   solveLayout();
 }
-function setItemSide(i,val){ state.items[i].side=parseInt(val); solveLayout(); }
+function setItemSide(i,val){ state.items[i].side=+val; solveLayout(); }
+function setAddSide(v){ state.addSide=v; const t=document.getElementById("addSideToggle"); if(t){ const g=t.querySelectorAll(".seg"); g[0].className="seg"+(v===7?" on7":""); g[1].className="seg"+(v===5?" on5":""); } }
 
 // ---------- single product/grade mode ----------
 function syncSingleUI(){
@@ -491,9 +505,9 @@ function renderInventory(){
     const mixed=layoutSides(state.carLayout).mixed;
     state.items.forEach((it,i)=>{ const d=document.createElement("div"); d.className="iitem";
       const sd=it.side||defaultSideTag(state.carLayout);
-      const sideCtl=mixed?`<select onchange="setItemSide(${i},this.value)" title="Which side this pack loads on" style="font-size:10px;padding:1px 3px;background:var(--bg2);border:1px solid var(--border);border-radius:3px;color:var(--text2);margin-right:2px"><option value="7"${sd===7?" selected":""}>7‑row</option><option value="5"${sd===5?" selected":""}>5‑row</option></select>`:"";
-      d.innerHTML=`<span class="chip" style="background:${LCOLORS[it.length]};border-color:${PCOLORS[it.product]};color:${GFONT[it.grade]};min-width:74px">${it.product}·${it.length}·${it.grade}</span>
-        <span class="ilabel"></span>${sideCtl}
+      const pill=mixed?`<span class="sideseg" title="Which side this pack loads on — click 7 or 5 to flip"><b class="seg ${sd===7?'on7':''}" onclick="setItemSide(${i},7)">7</b><b class="seg ${sd===5?'on5':''}" onclick="setItemSide(${i},5)">5</b></span>`:"";
+      d.innerHTML=`${pill}<span class="chip" style="background:${LCOLORS[it.length]};border-color:${PCOLORS[it.product]};color:${GFONT[it.grade]};min-width:74px">${it.product}·${it.length}·${it.grade}</span>
+        <span class="ilabel"></span>
         <span class="icount">${it.qty} pcs</span>
         <button class="brem" title="Remove" onclick="removeItem(${i})">✕</button>`;
       el.appendChild(d); });

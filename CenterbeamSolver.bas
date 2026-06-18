@@ -3,9 +3,9 @@ Option Explicit
 ' === Centerbeam 72-ft Auto-Solver (product + length + grade, per-side) ===
 ' Supports an asymmetric car: the two sides can have different row heights
 ' (5+5 = 10 rows, 7+5 = 12 rows mixed, 7+7 = 14 rows). The car layout is in C5.
-' Each inventory line (rows 10-29) carries a Side tag in column N ("7-row side" /
-' "5-row side"); in the mixed case the two sides are solved INDEPENDENTLY to exact
-' 72-ft rows and written into the grid as Side 1 rows then Side 2 rows.
+' Each inventory line (rows 10-29) carries a Side tag in column A ("7-row" / "5-row",
+' colour-coded, double-click to flip); in the mixed case the two sides are solved
+' INDEPENDENTLY to exact 72-ft rows and written into the grid as Side 1 then Side 2 rows.
 Private Patterns As Collection
 Private Found As Boolean
 Private Chosen As Collection
@@ -18,7 +18,7 @@ Private Const LIFIRST As Long = 10
 Private Const LILAST As Long = 29
 Private Const GRIDFIRST As Long = 34
 Private Const SLOTS As Long = 9
-Private Const SIDECOL As Long = 14      ' column N = per-line Side (7 or 5)
+Private Const SIDECOL As Long = 1       ' column A = per-line Side (7 or 5)
 
 ' Automation/test entry: run the solve with no popup dialogs.
 Public Sub SolveLayoutQuiet()
