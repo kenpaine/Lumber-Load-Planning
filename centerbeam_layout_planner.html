@@ -49,6 +49,14 @@
   .iitem .ilabel{flex:1}.iitem .icount{color:var(--text3);font-size:11px}
   .brem{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px}
   .brem:hover{color:var(--red2)}
+  /* per-line side toggle (mixed cars): color-coded 7|5 segmented control, left of the pack */
+  .sideseg{display:inline-flex;border-radius:5px;overflow:hidden;border:1px solid var(--border);flex:0 0 auto;user-select:none}
+  .sideseg .seg{font-size:10px;font-weight:800;padding:2px 6px;cursor:pointer;color:var(--text3);background:var(--bg2);line-height:1.35;transition:background .1s}
+  .sideseg .seg:hover{color:var(--text)}
+  .sideseg .seg.on7{background:#2f7d4f;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.25)}
+  .sideseg .seg.on5{background:#c2812f;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.25)}
+  .sideseg-lg{width:100%}
+  .sideseg-lg .seg{flex:1;text-align:center;font-size:13px;padding:8px 0}
   .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
   .sc{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:7px 9px}
   .sc .sl{font-size:9px;color:var(--text3);text-transform:uppercase}
@@ -134,10 +142,11 @@
   <div class="sidebar">
     <div class="sec">Configuration</div>
     <div>
-      <label>Number of Rows</label>
-      <select id="numRows" onchange="reconfigure()">
-        <option value="10">10 Rows</option>
-        <option value="14" selected>14 Rows</option>
+      <label>Car layout (rows per side)</label>
+      <select id="carLayout" onchange="reconfigure()">
+        <option value="5+5">5 + 5 &nbsp;— 10 rows</option>
+        <option value="7+5">7 + 5 &nbsp;— 12 rows (mixed)</option>
+        <option value="7+7">7 + 7 &nbsp;— 14 rows</option>
       </select>
     </div>
     <div>
@@ -159,6 +168,11 @@
       <div id="addProdField"><label>Product</label><select id="addProduct"></select></div>
       <div id="addLenField"><label>Length</label><select id="addLength"></select></div>
       <div id="addGradeField"><label>Grade</label><select id="addGrade"></select></div>
+      <div id="addSideField" class="full" style="display:none"><label>Side — which row height</label>
+        <div class="sideseg sideseg-lg" id="addSideToggle">
+          <b class="seg on7" onclick="setAddSide(7)">7‑row side</b><b class="seg" onclick="setAddSide(5)">5‑row side</b>
+        </div>
+      </div>
       <div id="addQtyField"><label>Packs</label><input type="number" id="addQty" value="1" min="1" max="999"></div>
       <div class="full" id="singleHint" style="display:none;font-size:11px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 8px"></div>
       <button class="btn primary full" onclick="addItem()">+ Add to Inventory</button>
@@ -177,6 +191,7 @@
         <div class="lf-need" id="lfNeed">—</div>
       </div>
     </div>
+    <div id="sideFit" class="screen-only" style="font-size:11px;line-height:1.5;margin:2px 0 4px"></div>
     <div class="ilist" id="itemList"></div>
     <div class="brow">
       <button class="btn primary" id="solveBtn" onclick="solveLayout()">⚡ Solve Layout</button>
@@ -255,7 +270,33 @@ function packBorder(c){ return state.palette===0?PCOLORS[c.product]:"#000000"; }
 function packText(c){ return state.palette===0?GFONT[c.grade]:bestText(lenFill(c.length)); }
 function setPalette(v){ state.palette=+v; renderManifest(); }
 
-let state={numRows:14,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2",palette:0};
+let state={numRows:10,carLayout:"5+5",split:{aRows:5,bRows:5,aTag:5,bTag:5,mixed:false},addSide:7,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2",palette:0};
+
+// ---------- per-side car model ----------
+// The car has two sides whose row heights can differ: 5+5 (10), 7+5 (12, mixed),
+// or 7+7 (14). Each inventory line is tagged with the side (by row count) it loads
+// on; in the mixed case the two sides are solved independently to exactly 72 ft/row.
+function layoutSides(layout){
+  if(layout==="7+5") return {aRows:7,bRows:5,aTag:7,bTag:5,mixed:true};
+  if(layout==="7+7") return {aRows:7,bRows:7,aTag:7,bTag:7,mixed:false};
+  return {aRows:5,bRows:5,aTag:5,bTag:5,mixed:false};   // 5+5
+}
+function defaultSideTag(layout){ return layout==="5+5"?5:7; }
+function expandPacks(items){ const o=[]; for(const it of items) for(let k=0;k<it.qty;k++) o.push({product:it.product,length:it.length,grade:it.grade}); return o; }
+function solveCar(items,layout){
+  const S=layoutSides(layout);
+  if(!S.mixed){                                   // symmetric: one pool, split evenly downstream
+    const total=S.aRows+S.bRows, res=solve(items,total);
+    return {rows:res.rows||Array.from({length:total},()=>[]), unplaced:res.rows?res.unplaced:expandPacks(items)};
+  }
+  const aItems=items.filter(it=>(it.side||S.aTag)===S.aTag);   // 7-row side
+  const bItems=items.filter(it=>(it.side||S.aTag)===S.bTag);   // 5-row side
+  const ra=solve(aItems,S.aRows), rb=solve(bItems,S.bRows);
+  const aRows=ra.rows||Array.from({length:S.aRows},()=>[]);
+  const bRows=rb.rows||Array.from({length:S.bRows},()=>[]);
+  const unplaced=(ra.rows?ra.unplaced:expandPacks(aItems)).concat(rb.rows?rb.unplaced:expandPacks(bItems));
+  return {rows:aRows.concat(bRows),unplaced};
+}
 
 // ---------- solver ----------
 function allPatterns(types){
@@ -330,7 +371,7 @@ function init(){
   document.getElementById("singleGrade").value=state.singleGrade;
   document.getElementById("singleMode").value=state.singleMode?"yes":"no";
   syncSingleUI();
-  state.numRows=10; document.getElementById("numRows").value="10";
+  state.carLayout="5+5"; document.getElementById("carLayout").value="5+5";
   state.items=[
     {product:"2x4",length:16,grade:"2",qty:2},
     {product:"2x6",length:16,grade:"2",qty:3},
@@ -338,20 +379,32 @@ function init(){
     {product:"2x8",length:14,grade:"MSR",qty:8},
     {product:"2x4",length:12,grade:"1",qty:30},
   ];
+  normalizeSides(); syncSideUI();
   buildLegends();
   solveLayout();
 }
-function reconfigure(){ state.numRows=parseInt(document.getElementById("numRows").value); solveLayout(); }
+function reconfigure(){ state.carLayout=document.getElementById("carLayout").value; normalizeSides(); syncSideUI(); solveLayout(); }
+// Keep every line's side tag valid for the current layout (symmetric -> force the
+// single side; mixed -> keep 5/7, default anything else to the layout's default).
+function normalizeSides(){ const S=layoutSides(state.carLayout);
+  for(const it of state.items){ if(!S.mixed) it.side=S.aTag; else if(it.side!==5 && it.side!==7) it.side=defaultSideTag(state.carLayout); } }
+function syncSideUI(){ const mixed=layoutSides(state.carLayout).mixed;
+  const f=document.getElementById("addSideField"); if(f) f.style.display=mixed?"":"none";
+  if(mixed) setAddSide(state.addSide); }
 function addItem(){
   const product=state.singleMode?state.singleProduct:document.getElementById("addProduct").value;
   const length=parseInt(document.getElementById("addLength").value);
   const grade=state.singleMode?state.singleGrade:document.getElementById("addGrade").value;
   const qty=parseInt(document.getElementById("addQty").value)||0;
   if(qty<1) return;
-  const ex=state.items.find(it=>it.product===product&&it.length===length&&it.grade===grade);
-  if(ex) ex.qty+=qty; else state.items.push({product,length,grade,qty});
+  const S=layoutSides(state.carLayout);
+  const side=S.mixed?state.addSide:S.aTag;
+  const ex=state.items.find(it=>it.product===product&&it.length===length&&it.grade===grade&&it.side===side);
+  if(ex) ex.qty+=qty; else state.items.push({product,length,grade,qty,side});
   solveLayout();
 }
+function setItemSide(i,val){ state.items[i].side=+val; solveLayout(); }
+function setAddSide(v){ state.addSide=v; const t=document.getElementById("addSideToggle"); if(t){ const g=t.querySelectorAll(".seg"); g[0].className="seg"+(v===7?" on7":""); g[1].className="seg"+(v===5?" on5":""); } }
 
 // ---------- single product/grade mode ----------
 function syncSingleUI(){
@@ -373,11 +426,12 @@ function applySingle(){
   if(state.singleMode){
     const merged={};
     for(const it of state.items){
-      const k=it.length;
+      const sd=it.side||defaultSideTag(state.carLayout);
+      const k=it.length+"|"+sd;
       if(merged[k]) merged[k].qty+=it.qty;
-      else merged[k]={product:state.singleProduct,length:it.length,grade:state.singleGrade,qty:it.qty};
+      else merged[k]={product:state.singleProduct,length:it.length,grade:state.singleGrade,qty:it.qty,side:sd};
     }
-    state.items=LENGTHS.filter(L=>merged[L]).map(L=>merged[L]);
+    state.items=Object.values(merged).sort((a,b)=>(b.side-a.side)||(a.length-b.length));
   }
   syncSingleUI();
   solveLayout();
@@ -399,7 +453,10 @@ ${cmpRows.toString()}
 ${patBetter.toString()}
 ${solveLengths.toString()}
 ${solve.toString()}
-onmessage=function(e){try{postMessage(solve(e.data.items,e.data.numRows));}catch(_){postMessage({rows:null,unplaced:null});}};`;
+${layoutSides.toString()}
+${expandPacks.toString()}
+${solveCar.toString()}
+onmessage=function(e){try{postMessage(solveCar(e.data.items,e.data.layout));}catch(_){postMessage({rows:null,unplaced:null});}};`;
 }
 function _spawnWorker(){
   if(_worker){ _worker.terminate(); _worker=null; }           // cancel any in-flight (stale) solve
@@ -411,6 +468,7 @@ function setSolving(on){ const b=document.getElementById("solveBtn"); if(!b) ret
   if(on){ if(!b.dataset.idle) b.dataset.idle=b.textContent; b.textContent="⏳ Solving…"; b.disabled=true; }
   else { b.textContent=b.dataset.idle||"⚡ Solve Layout"; b.disabled=false; } }
 function applySolution(res){ res=res||{};
+  const S=layoutSides(state.carLayout); state.split=S; state.numRows=S.aRows+S.bRows;
   state.rows=res.rows||Array.from({length:state.numRows},()=>[]);
   state.unplaced=res.unplaced||[];
   renderAll(); if(state.tab==="visual") zoomFit(); }
@@ -419,12 +477,12 @@ function runSolve(){
     try{
       const w=_spawnWorker(), seq=++_solveSeq; setSolving(true);
       w.onmessage=(e)=>{ if(seq!==_solveSeq) return; setSolving(false); applySolution(e.data); };
-      w.onerror=()=>{ _noWorker=true; setSolving(false); applySolution(solve(state.items,state.numRows)); };
-      w.postMessage({items:state.items.map(it=>({product:it.product,length:it.length,grade:it.grade,qty:it.qty})), numRows:state.numRows});
+      w.onerror=()=>{ _noWorker=true; setSolving(false); applySolution(solveCar(state.items,state.carLayout)); };
+      w.postMessage({items:state.items.map(it=>({product:it.product,length:it.length,grade:it.grade,qty:it.qty,side:it.side})), layout:state.carLayout});
       return;
     }catch(_){ _noWorker=true; }
   }
-  applySolution(solve(state.items,state.numRows));   // synchronous fallback (file://, no Worker)
+  applySolution(solveCar(state.items,state.carLayout));   // synchronous fallback (file://, no Worker)
 }
 function solveLayout(){ if(_solveTimer) clearTimeout(_solveTimer);
   _solveTimer=setTimeout(()=>{ _solveTimer=null; runSolve(); }, 140); }
@@ -442,13 +500,30 @@ function renderInventory(){
   else if(diff<0){need.textContent=Math.abs(diff)+" ft short";need.className="lf-need short";}
   else{need.textContent=diff+" ft over";need.className="lf-need over";}
   const el=document.getElementById("itemList"); el.innerHTML="";
-  if(!state.items.length){ el.innerHTML='<div class="muted" style="font-size:12px;padding:4px">No packs added yet.</div>'; return; }
-  state.items.forEach((it,i)=>{ const d=document.createElement("div"); d.className="iitem";
-    d.innerHTML=`<span class="chip" style="background:${LCOLORS[it.length]};border-color:${PCOLORS[it.product]};color:${GFONT[it.grade]};min-width:74px">${it.product}·${it.length}·${it.grade}</span>
-      <span class="ilabel"></span>
-      <span class="icount">${it.qty} pcs</span>
-      <button class="brem" title="Remove" onclick="removeItem(${i})">✕</button>`;
-    el.appendChild(d); });
+  if(!state.items.length){ el.innerHTML='<div class="muted" style="font-size:12px;padding:4px">No packs added yet.</div>'; }
+  else {
+    const mixed=layoutSides(state.carLayout).mixed;
+    state.items.forEach((it,i)=>{ const d=document.createElement("div"); d.className="iitem";
+      const sd=it.side||defaultSideTag(state.carLayout);
+      const pill=mixed?`<span class="sideseg" title="Which side this pack loads on — click 7 or 5 to flip"><b class="seg ${sd===7?'on7':''}" onclick="setItemSide(${i},7)">7</b><b class="seg ${sd===5?'on5':''}" onclick="setItemSide(${i},5)">5</b></span>`:"";
+      d.innerHTML=`${pill}<span class="chip" style="background:${LCOLORS[it.length]};border-color:${PCOLORS[it.product]};color:${GFONT[it.grade]};min-width:74px">${it.product}·${it.length}·${it.grade}</span>
+        <span class="ilabel"></span>
+        <span class="icount">${it.qty} pcs</span>
+        <button class="brem" title="Remove" onclick="removeItem(${i})">✕</button>`;
+      el.appendChild(d); });
+  }
+  renderSideFit();
+}
+// Per-side footage feedback (mixed cars only): each side must hit its exact ft.
+function renderSideFit(){
+  const box=document.getElementById("sideFit"); if(!box) return;
+  const S=layoutSides(state.carLayout);
+  if(!S.mixed){ box.innerHTML=""; return; }
+  const ft=tag=>state.items.filter(it=>(it.side||S.aTag)===tag).reduce((s,it)=>s+it.length*it.qty,0);
+  const line=(tag,rows)=>{ const have=ft(tag),cap=rows*TARGET,d=have-cap;
+    const v=d===0?'<span style="color:var(--green2)">✓ exact</span>':d<0?`<span style="color:var(--amber2)">${-d} ft short</span>`:`<span style="color:var(--red2)">${d} ft over</span>`;
+    return `<div><b>${tag}-row side</b>: ${have} / ${cap} ft &nbsp;${v}</div>`; };
+  box.innerHTML=line(S.aTag,S.aRows)+line(S.bTag,S.bRows);
 }
 function placedCount(){ return state.rows.reduce((s,r)=>s+r.length,0); }
 function renderStats(){
@@ -484,7 +559,9 @@ function render(){
   const z=state.zoom, pxft=PXFT*z, rowH=ROWH*z, gap=ROWGAP*z, padX=PADX*z, padY=PADY*z;
   const C=CV_THEME[state.theme]||CV_THEME.dark;
   const carPx=TARGET*pxft, n=state.numRows;
-  const H=padY*2+n*(rowH+gap)+26*z;
+  const S=state.split||layoutSides(state.carLayout), brk=S.aRows, sideGapPx=S.mixed?24*z:0;
+  const yOf=r=>padY+r*(rowH+gap)+(r>=brk?sideGapPx:0);   // extra gap before side 2 in a mixed car
+  const H=padY*2+n*(rowH+gap)+sideGapPx+26*z;
   cv.width=Math.round(carPx+padX*2); cv.height=Math.round(H);
   cv.style.width=cv.width+"px"; cv.style.height=cv.height+"px";
   const ctx=cv.getContext("2d"); ctx.clearRect(0,0,cv.width,cv.height);
@@ -492,9 +569,9 @@ function render(){
   ctx.fillStyle=C.tie; for(let tx=padX;tx<padX+carPx;tx+=13*z) ctx.fillRect(tx,0,5*z,cv.height);
   ctx.fillStyle=C.deck; ctx.fillRect(padX,padY/2,carPx,cv.height-padY);
   ctx.strokeStyle=C.deckStroke; ctx.lineWidth=1.5*z; ctx.strokeRect(padX,padY/2,carPx,cv.height-padY);
-  ctx.fillStyle=C.rail; ctx.fillRect(padX,padY-7*z,carPx,7*z); ctx.fillRect(padX,padY+n*(rowH+gap),carPx,7*z);
+  ctx.fillStyle=C.rail; ctx.fillRect(padX,padY-7*z,carPx,7*z); ctx.fillRect(padX,padY+n*(rowH+gap)+sideGapPx,carPx,7*z);
   for(let r=0;r<n;r++){
-    const row=state.rows[r]||[], rowY=padY+r*(rowH+gap);
+    const row=state.rows[r]||[], rowY=yOf(r);
     const used=row.reduce((s,c)=>s+c.length,0), exact=used===TARGET;
     ctx.fillStyle=C.rowBg; ctx.fillRect(padX,rowY,carPx,rowH);
     ctx.strokeStyle=C.rowStroke; ctx.lineWidth=.5; ctx.strokeRect(padX,rowY,carPx,rowH);
@@ -517,6 +594,13 @@ function render(){
       ctx.setLineDash([3*z,3*z]); ctx.strokeStyle="rgba(200,137,42,.4)"; ctx.lineWidth=1; ctx.strokeRect(ex,rowY+2*z,ew,rowH-4*z); ctx.setLineDash([]);
       if(ew>16*z){ ctx.fillStyle=C.shortText; ctx.font=`${Math.round(8*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("-"+(TARGET-used)+"'",ex+ew/2,rowY+rowH/2); } }
   }
+  if(S.mixed){
+    const by=padY+brk*(rowH+gap)+sideGapPx/2;
+    ctx.fillStyle=C.bottomRail; ctx.fillRect(padX-7*z,by-1.5*z,carPx+14*z,3*z);   // center beam between the two sides
+    ctx.fillStyle=C.titleText; ctx.font=`bold ${Math.round(8*z)}px 'Segoe UI'`; ctx.textAlign="center";
+    ctx.textBaseline="bottom"; ctx.fillText(`SIDE 1 · ${S.aRows} rows`,padX+carPx/2,by-3*z);
+    ctx.textBaseline="top"; ctx.fillText(`SIDE 2 · ${S.bRows} rows`,padX+carPx/2,by+3*z);
+  }
   ctx.fillStyle=C.bottomRail; ctx.fillRect(padX-7*z,cv.height-12*z,carPx+14*z,4*z);
   ctx.strokeStyle=C.rulerLine; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padX,padY-14*z); ctx.lineTo(padX+carPx,padY-14*z); ctx.stroke();
   const step=z<.5?10:z<.8?4:2;
@@ -524,7 +608,7 @@ function render(){
     ctx.beginPath(); ctx.moveTo(tx,padY-18*z); ctx.lineTo(tx,padY-10*z); ctx.stroke();
     ctx.fillStyle=C.tickText; ctx.font=`${Math.round(9*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="bottom"; ctx.fillText(ft+"'",tx,padY-20*z); }
   ctx.fillStyle=C.titleText; ctx.font=`bold ${Math.round(11*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="bottom";
-  ctx.fillText(`← 72 ft Centerbeam Car — ${n} Rows →`,padX+carPx/2,padY-22*z);
+  ctx.fillText(`← 72 ft Centerbeam Car — ${S.mixed?S.aRows+"+"+S.bRows+" rows":n+" Rows"} →`,padX+carPx/2,padY-22*z);
   const uL=new Set(),uP=new Set(),uG=new Set();
   state.rows.forEach(r=>r.forEach(c=>{uL.add(c.length);uP.add(c.product);uG.add(c.grade);}));
   let lh="";
@@ -537,7 +621,9 @@ function zoom(d){ state.zoom=Math.max(.2,Math.min(4,state.zoom+d*0.15)); documen
 function zoomFit(){ const w=document.querySelector(".cw").clientWidth-32; state.zoom=Math.max(.2,w/(TARGET*PXFT+PADX*2)); document.getElementById("zoomLabel").textContent=Math.round(state.zoom*100)+"%"; render(); }
 document.getElementById("cv").addEventListener("mousemove",e=>{
   const rect=e.target.getBoundingClientRect(); const z=state.zoom,pxft=PXFT*z,padX=PADX*z,padY=PADY*z,rowH=(ROWH+ROWGAP)*z;
-  const ft=(e.clientX-rect.left-padX)/pxft, ri=Math.floor((e.clientY-rect.top-padY)/rowH);
+  const S=state.split||layoutSides(state.carLayout), sideGapPx=S.mixed?24*z:0;
+  const ft=(e.clientX-rect.left-padX)/pxft; let yl=e.clientY-rect.top-padY;
+  const ri=yl<S.aRows*rowH?Math.floor(yl/rowH):S.aRows+Math.floor((yl-S.aRows*rowH-sideGapPx)/rowH);
   const info=document.getElementById("cursorInfo");
   if(ri>=0&&ri<state.numRows&&ft>=0&&ft<=TARGET){ const row=state.rows[ri]||[]; let cur=0;
     for(const c of row){ if(ft>=cur&&ft<cur+c.length){ info.textContent=`Row ${ri+1} · ${c.product} ${c.length}ft Grade ${c.grade} · ${cur}'–${cur+c.length}'`; return; } cur+=c.length; }
@@ -569,16 +655,17 @@ function pickList(){ const order=[]; const key=c=>`${c.product}|${c.length}|${c.
   state.rows.forEach(r=>r.forEach(c=>{ const k=key(c); if(!(k in counts)){counts[k]=0;order.push(c);} counts[k]++; }));
   order.sort((a,b)=> PRODUCTS.indexOf(a.product)-PRODUCTS.indexOf(b.product) || a.length-b.length || GRADES.indexOf(a.grade)-GRADES.indexOf(b.grade));
   return order.map(c=>({product:c.product,length:c.length,grade:c.grade,packs:counts[key(c)]})); }
-// To-scale, per-side car diagram (SVG). Side 1 = tiers 1..N/2, Side 2 = N/2+1..N.
+// To-scale, per-side car diagram (SVG). Uses the real per-side row counts, so a
+// mixed 7+5 car shows Side 1 = 7 tiers and Side 2 = 5 tiers.
 function manifestDiagramSVG(){
-  const N=state.numRows, perSide=Math.max(1,Math.floor(N/2));
+  const S=state.split||layoutSides(state.carLayout);
   const W=1000, labelW=34, carW=W-labelW-8, x0=0, pxft=carW/72;
   const sideHdrH=20, rulerH=15, tierH=26, tierGap=4, sideGap=16, padTop=4;
-  const ranges=[[1,perSide],[perSide+1,N]];
+  const ranges=[[1,S.aRows,1,S.aRows],[S.aRows+1,S.aRows+S.bRows,2,S.bRows]];
   let body="", y=padTop;
-  for(const [t0,t1] of ranges){
-    body+=`<text x="${x0}" y="${y+13}" font-size="12" font-weight="700" fill="#2e5e20">SIDE ${t0<=perSide?1:2}</text>`;
-    body+=`<text x="${x0+52}" y="${y+13}" font-size="10" fill="#7a7a7a">tiers ${t0}-${t1}</text>`;
+  for(const [t0,t1,sideNum,cnt] of ranges){
+    body+=`<text x="${x0}" y="${y+13}" font-size="12" font-weight="700" fill="#2e5e20">SIDE ${sideNum}</text>`;
+    body+=`<text x="${x0+52}" y="${y+13}" font-size="10" fill="#7a7a7a">${cnt} rows · tiers ${t0}-${t1}</text>`;
     y+=sideHdrH;
     for(let ft=0;ft<=72;ft+=12){ const xx=x0+labelW+ft*pxft;
       body+=`<text x="${xx}" y="${y+10}" font-size="8" fill="#9a9a9a" text-anchor="middle">${ft}'</text>`; }

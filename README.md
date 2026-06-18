@@ -40,7 +40,9 @@ install, no macros). Only **length** drives the 72‑ft fit.
 
 ### Browser app — `centerbeam_layout_planner.html`
 
-Full‑featured app: line‑item inventory, **single or mixed product/grade**, the
+Full‑featured app: line‑item inventory, **single or mixed product/grade**, an
+**asymmetric car layout** (5+5, **7+5 mixed**, or 7+7 — with a per‑line side
+selector so each side solves independently), the
 column‑stacking solver, a proportional visual car layout, Row Detail, and the
 Pattern Library. Its **Manifest** matches the Excel tool — a **to‑scale, per‑side
 car diagram**, a **dynamic pick list** that wraps into columns when long, and a
@@ -171,7 +173,15 @@ pack and drive the color scheme and the manifest breakdowns.
 
 ### Planner sheet
 
-1. Set **Number of Rows** (10 or 14).
+1. Set the **Car layout** — `5 + 5` (10 rows), `7 + 5` (12 rows, **mixed**), or
+   `7 + 7` (14 rows). The two numbers are the rows on each side of the car; a
+   **mixed `7 + 5`** car has a 7‑row side (e.g. short 4×4 stock) and a 5‑row side
+   (taller stock). On a mixed car each inventory line gets a colour‑coded **Side**
+   cell on the **left** (`7‑row` green / `5‑row` amber — pick from the dropdown or
+   **double‑click to flip**); the *same* product can sit on either side, and the two
+   sides are solved **independently** to exact 72‑ft rows and kept on their own
+   side in the grid and the manifest. *(In the browser app it's a `7 | 5` toggle at
+   the left of each line.)*
 2. Choose how the car is loaded with the **Single product/grade?** toggle:
    - **Yes (single product/grade)** — most cars. Pick the **Product** and **Grade**
      once in the *Single Product / Grade* box. The Product and Grade columns in the

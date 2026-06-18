@@ -21,6 +21,24 @@ Private Const PLI_LAST As Long = 29     ' Planner line-item last row
 Private mSeq As Long
 Private mPick As Long
 
+' Parse the Planner car-layout config (C5: "5+5","7+5","7+7"; or legacy 10/14)
+' into the two sides' row counts. A mixed 7+5 car => Side 1 = 7, Side 2 = 5.
+Private Sub ParseCarSides(ByVal s As String, ByRef aRows As Long, ByRef bRows As Long)
+    s = Trim(s)
+    Select Case s
+        Case "7+5", "5+7": aRows = 7: bRows = 5
+        Case "7+7":        aRows = 7: bRows = 7
+        Case "5+5":        aRows = 5: bRows = 5
+        Case Else
+            Dim n As Long: If IsNumeric(s) Then n = CLng(Val(s))
+            If n = 14 Then
+                aRows = 7: bRows = 7
+            Else
+                aRows = 5: bRows = 5
+            End If
+    End Select
+End Sub
+
 Public Sub DrawManifestDiagram()
     On Error GoTo done
     Dim wsP As Worksheet, mf As Worksheet
@@ -33,10 +51,9 @@ Public Sub DrawManifestDiagram()
     Dim pal As Long: pal = CurrentPalette()
     ApplyLegend mf, pal
 
-    Dim nRows As Long: nRows = CLng(Val(wsP.Range("C5").Value))
-    If nRows < 2 Then nRows = 10
-    Dim perSide As Long: perSide = nRows \ 2
-    If perSide < 1 Then perSide = 1
+    Dim aRows As Long, bRows As Long
+    ParseCarSides CStr(wsP.Range("C5").Value), aRows, bRows
+    Dim nRows As Long: nRows = aRows + bRows
 
     ' --- geometry: fit inside the cleared band (Manifest row 14 .. row 30) ---
     Dim x0 As Double, y0 As Double, availH As Double
@@ -66,14 +83,20 @@ Public Sub DrawManifestDiagram()
     Dim y As Double: y = y0
     Dim side As Long
     For side = 1 To 2
+        Dim sideRows As Long, startTier As Long
+        If side = 1 Then
+            sideRows = aRows: startTier = 1
+        Else
+            sideRows = bRows: startTier = aRows + 1
+        End If
         AddLabel mf, x0, y, labelW + carW, sideHdrH, _
-                 "SIDE " & side & "   tiers " & ((side - 1) * perSide + 1) & "-" & (side * perSide), True
+                 "SIDE " & side & "   " & sideRows & " rows  (tiers " & startTier & "-" & (startTier + sideRows - 1) & ")", True
         y = y + sideHdrH
         DrawRuler mf, x0 + labelW, y, pxft, rulerH
         y = y + rulerH
         Dim t As Long
-        For t = 1 To perSide
-            Dim tier As Long: tier = (side - 1) * perSide + t
+        For t = 1 To sideRows
+            Dim tier As Long: tier = startTier + t - 1
             Dim pr As Long: pr = GF + tier - 1
             AddLabel mf, x0, y, labelW, bandH, "R" & tier, False
             Dim bg As Shape
