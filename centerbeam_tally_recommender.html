@@ -112,10 +112,11 @@
   <div class="sidebar">
     <div class="sec">Settings</div>
     <div>
-      <label>Car size</label>
-      <select id="carSize" onchange="recommend()">
-        <option value="10">720 ft (10 rows)</option>
-        <option value="14">1008 ft (14 rows)</option>
+      <label>Car layout</label>
+      <select id="carLayout" onchange="setLayout(this.value)">
+        <option value="5+5">720 ft — 5 + 5 (10 rows)</option>
+        <option value="7+5">864 ft — 7 + 5 (12 rows, mixed)</option>
+        <option value="7+7">1008 ft — 7 + 7 (14 rows)</option>
       </select>
     </div>
     <div>
@@ -127,8 +128,7 @@
       </select>
     </div>
 
-    <div class="sec">Length Palette</div>
-    <div class="palette" id="palette"></div>
+    <div id="paletteWrap"></div>
 
     <div class="brow">
       <button class="btn primary" onclick="recommend()">Recommend Tallies</button>
@@ -187,13 +187,21 @@ const MODE_TEXT={
 
 let state={
   theme:"dark", tab:"recs", palette:0,
-  selected:new Set([16,20]),
-  patterns:[],     // array of count objects {8:n,...}
-  recs:[],         // {label, counts, pcs, ft, ok}
+  carLayout:"5+5",                 // 5+5 (10 rows) | 7+5 (12, mixed) | 7+7 (14)
+  selected:new Set([16,20]),       // symmetric-car length selection
+  selA:new Set([12]),              // 7-row side lengths (mixed)
+  selB:new Set([16,20]),           // 5-row side lengths (mixed)
+  patterns:[],     // array of count objects {8:n,...}  (symmetric)
+  recs:[],         // {label, counts, pcs, ft, ok}      (symmetric)
+  A:null, B:null,  // {patterns, recs} per side          (mixed)
   recSort:null,    // length to sort recs by (desc), or null = default order
   patSort:null,    // length to sort patterns by
   handBuild:{}     // patternIndex -> rows to use
 };
+// --- car layout -> per-side rows ---
+function layoutRows(l){ return l==="7+5"?{a:7,b:5,mixed:true}:l==="7+7"?{a:7,b:7,mixed:false}:{a:5,b:5,mixed:false}; }
+function isMixed(){ return layoutRows(state.carLayout).mixed; }
+function totalRows(){ const r=layoutRows(state.carLayout); return r.a+r.b; }
 
 // ---- enumerate every multiset of allowed lengths that sums to 72 ----
 function enumPatterns(allowed){
@@ -219,35 +227,20 @@ function carCovers(a,b,sel,mode){
   return true;
 }
 
-// ---- main recommend (mirrors RecommendTallies / BuildRecommendations) ----
-function recommend(){
-  const sel=[...state.selected].sort((a,b)=>a-b);
-  const mode=+document.getElementById("mode").value;
-  const carRows=+document.getElementById("carSize").value;
-  state.handBuild={};
-
-  if(sel.length===0){
-    state.patterns=[]; state.recs=[];
-    setStatus("warn","Check at least one length box, then click Recommend Tallies.");
-    return render();
-  }
+// ---- core recommender for a car/side of `rows` rows from a length selection ----
+function recommendForRows(selSet, rows, mode){
+  const sel=[...selSet].sort((a,b)=>a-b);
+  if(sel.length===0) return {patterns:[], recs:[]};
   const allowed=(mode===3)?LENGTHS.slice():sel.slice();
   const patterns=enumPatterns(allowed);
-  state.patterns=patterns;
-  if(patterns.length===0){
-    state.recs=[];
-    setStatus("warn","No 72-ft row can be built from those lengths. Add another length and try again.");
-    return render();
-  }
-
-  const selSet=new Set(sel);
-  const recs=[];
-  // single-pattern cars (all rows the same)
+  if(patterns.length===0) return {patterns:[], recs:[]};
+  const selSet2=new Set(sel), recs=[];
+  // single-pattern fills (all rows the same)
   for(const p of patterns){
     if(recs.length>=MAX_RECS) break;
-    if(carCovers(p,p,selSet,mode)){
-      const counts={}; LENGTHS.forEach(L=>counts[L]=p[L]*carRows);
-      recs.push(makeRec("All "+carRows+" rows:  "+rowLabel(p), counts, carRows));
+    if(carCovers(p,p,selSet2,mode)){
+      const counts={}; LENGTHS.forEach(L=>counts[L]=p[L]*rows);
+      recs.push(makeRec("All "+rows+" rows:  "+rowLabel(p), counts, rows));
     }
   }
   // two-pattern blends (modes 2 and 3)
@@ -257,21 +250,36 @@ function recommend(){
       for(let j=i+1;j<patterns.length;j++){
         if(recs.length>=MAX_RECS) break outer;
         const a=patterns[i], b=patterns[j];
-        if(carCovers(a,b,selSet,mode)){
-          let na=Math.floor(carRows/2); if(na<1)na=1; const nb=carRows-na;
+        if(carCovers(a,b,selSet2,mode)){
+          let na=Math.floor(rows/2); if(na<1)na=1; const nb=rows-na;
           const counts={}; LENGTHS.forEach(L=>counts[L]=a[L]*na+b[L]*nb);
-          recs.push(makeRec(na+" rows ("+rowLabel(a)+")  +  "+nb+" rows ("+rowLabel(b)+")", counts, carRows));
+          recs.push(makeRec(na+" rows ("+rowLabel(a)+")  +  "+nb+" rows ("+rowLabel(b)+")", counts, rows));
         }
       }
     }
   }
-  state.recs=recs;
+  return {patterns, recs};
+}
 
-  const carFt=carRows*72;
-  if(recs.length===0){
-    setStatus("warn","No single- or two-pattern car covers every selected length. Add a length, try ‘Palette’ mode, or hand-build on the Row Patterns tab.  ("+patterns.length+" row patterns found.)");
-  }else{
-    setStatus("ok", recs.length+" tally(ies) recommended for a "+carFt+"-ft car ("+carRows+" rows).  "+patterns.length+" valid 72-ft row patterns are on the Row Patterns tab.");
+// ---- main recommend: one car (symmetric) or two independent sides (mixed 7+5) ----
+function recommend(){
+  const mode=+document.getElementById("mode").value;
+  state.handBuild={};
+  if(isMixed()){
+    const R=layoutRows(state.carLayout);
+    state.A=recommendForRows(state.selA, R.a, mode);
+    state.B=recommendForRows(state.selB, R.b, mode);
+    const okA=state.A.recs.length>0, okB=state.B.recs.length>0;
+    if(okA&&okB) setStatus("ok","Mixed 7+5 car: "+state.A.recs.length+" tally(ies) for the 7‑row side (504 ft) + "+state.B.recs.length+" for the 5‑row side (360 ft).");
+    else setStatus("warn","Check lengths for each side. 7‑row side: "+(okA?state.A.recs.length+" found":"none yet")+" · 5‑row side: "+(okB?state.B.recs.length+" found":"none yet")+".");
+  } else {
+    const r=recommendForRows(state.selected, totalRows(), mode);
+    state.patterns=r.patterns; state.recs=r.recs;
+    const carFt=totalRows()*72;
+    if(state.selected.size===0) setStatus("warn","Check at least one length box, then click Recommend Tallies.");
+    else if(r.patterns.length===0) setStatus("warn","No 72-ft row can be built from those lengths. Add another length and try again.");
+    else if(r.recs.length===0) setStatus("warn","No single- or two-pattern car covers every selected length. Try ‘Palette’ mode, or hand-build on the Row Patterns tab. ("+r.patterns.length+" row patterns found.)");
+    else setStatus("ok", r.recs.length+" tally(ies) recommended for a "+carFt+"-ft car ("+totalRows()+" rows). "+r.patterns.length+" valid 72-ft row patterns are on the Row Patterns tab.");
   }
   render();
 }
@@ -279,7 +287,7 @@ function makeRec(label,counts,carRows){ const ft=ftOf(counts); return {label,cou
 
 function setStatus(kind,msg){ const s=document.getElementById("status"); s.className="alert "+(kind==="ok"?"ok":"warn"); s.textContent=msg; }
 function clearOut(){
-  state.patterns=[]; state.recs=[]; state.recSort=null; state.patSort=null; state.handBuild={};
+  state.patterns=[]; state.recs=[]; state.A=null; state.B=null; state.recSort=null; state.patSort=null; state.handBuild={};
   setStatus("ok","Cleared. Choose options and click Recommend Tallies.");
   render();
 }
@@ -293,45 +301,61 @@ function lenHeaders(kind){
 }
 function lenCell(v,L){ return `<td style="${v?`background:${lenFill(L)};color:${lenText(L)};font-weight:700`:""}">${v||""}</td>`; }
 
-function renderRecs(){
-  const box=document.getElementById("recsBox");
-  if(state.recs.length===0){
-    box.innerHTML=`<div class="secttitle">Recommended Full-Car Tallies</div><div class="muted">No recommendations yet — pick lengths and click <b>Recommend Tallies</b>.</div>`;
-    return;
-  }
-  let rows=state.recs.slice();
+function recsTableHTML(recs, title, note, how){
+  if(!recs || recs.length===0) return `<div class="secttitle">${title}</div><div class="muted">No recommendations yet — pick lengths and click <b>Recommend Tallies</b>.</div>`;
+  let rows=recs.slice();
   if(state.recSort!=null) rows.sort((a,b)=>(b.counts[state.recSort]||0)-(a.counts[state.recSort]||0));
-  let h=`<div class="secttitle">Recommended Full-Car Tallies <span class="note">(click a length header to sort)</span></div>`;
-  h+=`<table class="t"><thead><tr><th>#</th><th>Tally (how to load the car)</th>${lenHeaders("rec")}<th>Total pcs</th><th>Total ft</th><th>OK?</th></tr></thead><tbody>`;
+  let h=`<div class="secttitle">${title}${note?` <span class="note">(${note})</span>`:""}</div>`;
+  h+=`<table class="t"><thead><tr><th>#</th><th>${how}</th>${lenHeaders("rec")}<th>Total pcs</th><th>Total ft</th><th>OK?</th></tr></thead><tbody>`;
   rows.forEach((r,i)=>{
     h+=`<tr><td>${i+1}</td><td class="rowlbl">${r.label}</td>`;
     LENGTHS.forEach(L=>h+=lenCell(r.counts[L],L));
     h+=`<td>${r.pcs}</td><td>${r.ft}</td><td class="okmark">${r.ok?"OK":"check"}</td></tr>`;
   });
-  box.innerHTML=h+`</tbody></table>`;
+  return h+`</tbody></table>`;
+}
+function renderRecs(){
+  const box=document.getElementById("recsBox");
+  if(isMixed()){
+    const A=state.A||{recs:[]}, B=state.B||{recs:[]};
+    box.innerHTML = recsTableHTML(A.recs, "🟩 7‑row side — Recommended Tallies (504 ft)", "click a length header to sort", "Tally (how to load this side)")
+      + `<div style="height:16px"></div>`
+      + recsTableHTML(B.recs, "🟦 5‑row side — Recommended Tallies (360 ft)", "", "Tally (how to load this side)");
+  } else {
+    box.innerHTML = recsTableHTML(state.recs, "Recommended Full-Car Tallies", "click a length header to sort", "Tally (how to load the car)");
+  }
 }
 
-function renderPatterns(){
-  const box=document.getElementById("patBox");
-  if(state.patterns.length===0){
-    box.innerHTML=`<div class="secttitle">Valid 72-ft Row Patterns</div><div class="muted">No patterns yet — pick lengths and click <b>Recommend Tallies</b>.</div>`;
-    return;
-  }
-  let rows=state.patterns.map((c,i)=>({c,i}));
+function patternsTableHTML(patterns, title, handBuild){
+  if(!patterns || patterns.length===0) return `<div class="secttitle">${title}</div><div class="muted">No patterns yet — pick lengths and click <b>Recommend Tallies</b>.</div>`;
+  let rows=patterns.map((c,i)=>({c,i}));
   if(state.patSort!=null) rows.sort((a,b)=>(b.c[state.patSort]||0)-(a.c[state.patSort]||0));
-  let h=`<div class="secttitle">Valid 72-ft Row Patterns <span class="note">(building blocks — click a length header to sort; type Rows to use to hand-build a car)</span></div>`;
-  h+=`<table class="t"><thead><tr><th>#</th><th>Row = 72 ft</th>${lenHeaders("pat")}<th>Rows to use</th></tr></thead><tbody>`;
+  let h=`<div class="secttitle">${title} <span class="note">(${handBuild?"building blocks — click a length header to sort; type Rows to use to hand-build a car":"click a length header to sort"})</span></div>`;
+  h+=`<table class="t"><thead><tr><th>#</th><th>Row = 72 ft</th>${lenHeaders("pat")}${handBuild?"<th>Rows to use</th>":""}</tr></thead><tbody>`;
   rows.forEach((o,i)=>{
     h+=`<tr><td>${i+1}</td><td class="rowlbl">${rowLabel(o.c)}</td>`;
     LENGTHS.forEach(L=>h+=lenCell(o.c[L],L));
-    h+=`<td><input class="rinput" type="number" min="0" value="${state.handBuild[o.i]||""}" oninput="setRows(${o.i},this.value)"></td></tr>`;
+    if(handBuild) h+=`<td><input class="rinput" type="number" min="0" value="${state.handBuild[o.i]||""}" oninput="setRows(${o.i},this.value)"></td>`;
+    h+=`</tr>`;
   });
-  // hand-build total row
-  h+=`<tr class="totrow"><td></td><td class="rowlbl">YOUR HAND-BUILT TALLY</td>`;
-  LENGTHS.forEach(L=>h+=`<td id="tot-${L}"></td>`);
-  h+=`<td id="tot-rows">0 rows</td></tr>`;
-  box.innerHTML=h+`</tbody></table>`;
-  updateHandTotal();
+  if(handBuild){
+    h+=`<tr class="totrow"><td></td><td class="rowlbl">YOUR HAND-BUILT TALLY</td>`;
+    LENGTHS.forEach(L=>h+=`<td id="tot-${L}"></td>`);
+    h+=`<td id="tot-rows">0 rows</td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+function renderPatterns(){
+  const box=document.getElementById("patBox");
+  if(isMixed()){
+    const A=state.A||{patterns:[]}, B=state.B||{patterns:[]};
+    box.innerHTML = patternsTableHTML(A.patterns, "🟩 7‑row side — Valid 72-ft Row Patterns", false)
+      + `<div style="height:16px"></div>`
+      + patternsTableHTML(B.patterns, "🟦 5‑row side — Valid 72-ft Row Patterns", false);
+  } else {
+    box.innerHTML = patternsTableHTML(state.patterns, "Valid 72-ft Row Patterns", true);
+    updateHandTotal();
+  }
 }
 function setRows(idx,val){
   const n=parseInt(val,10);
@@ -352,22 +376,38 @@ function sortBy(kind,L){
 }
 function render(){ renderRecs(); renderPatterns(); }
 
-function renderPalette(){
-  document.getElementById("palette").innerHTML=LENGTHS.map(L=>{
-    const on=state.selected.has(L)?"checked":"";
-    return `<label class="prow"><input type="checkbox" ${on} onchange="toggleLen(${L},this.checked)"><span class="lchip" style="background:${lenFill(L)};color:${lenText(L)}">${L}'</span><span class="pname">${L} ft</span></label>`;
+function paletteHTML(selSet, side, title){
+  const rows=LENGTHS.map(L=>{
+    const on=selSet.has(L)?"checked":"";
+    return `<label class="prow"><input type="checkbox" ${on} onchange="toggleLen(${L},this.checked,'${side}')"><span class="lchip" style="background:${lenFill(L)};color:${lenText(L)}">${L}'</span><span class="pname">${L} ft</span></label>`;
   }).join("");
+  return `<div class="sec">${title}</div><div class="palette">${rows}</div>`;
 }
-function toggleLen(L,on){ if(on) state.selected.add(L); else state.selected.delete(L); recommend(); }
+function renderPalette(){
+  const wrap=document.getElementById("paletteWrap");
+  if(isMixed()){
+    wrap.innerHTML=paletteHTML(state.selA,"A","7‑row side — lengths")+paletteHTML(state.selB,"B","5‑row side — lengths");
+  } else {
+    wrap.innerHTML=paletteHTML(state.selected,"S","Length Palette");
+  }
+}
+function toggleLen(L,on,side){
+  const set = side==="A"?state.selA : side==="B"?state.selB : state.selected;
+  if(on) set.add(L); else set.delete(L);
+  recommend();
+}
+function setLayout(v){ state.carLayout=v; state.recSort=null; state.patSort=null; renderPalette(); recommend(); }
 function onModeChange(){ document.getElementById("modeHint").textContent=MODE_TEXT[+document.getElementById("mode").value]; recommend(); }
 function renderLegend(){ document.getElementById("legend").innerHTML=LENGTHS.map(L=>`<span class="lswatch" style="background:${lenFill(L)};color:${lenText(L)}">${L}'</span>`).join(""); }
 
 function renderHelp(){
   document.getElementById("helpBox").innerHTML=`
     <div class="secttitle">Centerbeam 72-ft Car — Tally Recommender</div>
-    <p>A 72-ft centerbeam car loads in rows; every row must fill end-to-end to <b>exactly 72 ft</b>. This finds the length combinations that fill a 72-ft row, then recommends complete car tallies (720 ft = 10 rows, or 1008 ft = 14 rows) from the lengths you choose.</p>
+    <p>A 72-ft centerbeam car loads in rows; every row must fill end-to-end to <b>exactly 72 ft</b>. This finds the length combinations that fill a 72-ft row, then recommends complete car tallies (720 ft = 10 rows, 864 ft = a mixed 7+5 car, or 1008 ft = 14 rows) from the lengths you choose.</p>
+    <h3>Asymmetric (mixed 7+5) cars</h3>
+    <p>Pick <b>Car layout → 7 + 5</b> when the two sides load to different heights — e.g. a <b>7-row side</b> of short stock (504 ft) and a <b>5-row side</b> of taller stock (360 ft). You then get a <b>separate length palette and a separate recommended tally for each side</b>, since each side may use different lengths. The 5+5 and 7+7 layouts are the normal symmetric full cars.</p>
     <h3>How to use</h3>
-    <p>1.&nbsp; Pick <b>Car size</b> (720 or 1008 ft).<br>
+    <p>1.&nbsp; Pick a <b>Car layout</b> (5+5, 7+5 mixed, or 7+7).<br>
     2.&nbsp; Pick a <b>Match mode</b> — <code>Palette</code> builds only from checked lengths; <code>Each selected must appear</code> makes every checked length show up in the car; <code>Each must appear + fillers</code> lets other lengths finish a row.<br>
     3.&nbsp; Check the lengths you want in the <b>Length Palette</b>.<br>
     4.&nbsp; Read the <b>Recommended Tallies</b> (it updates as you change options).</p>
