@@ -48,6 +48,7 @@ BAS = os.path.join(HERE, "tally_recommender.bas")
 NAVY, INK, WHITE = "1F4E79", "33414F", "FFFFFF"
 HDRLT, STATUSF, NOTEF = "DDE6ED", "EAF0E6", "F0F4F8"
 PALEBLUE = "DDEBF7"   # row highlight when a field in that row is selected
+LIGHTBLUE = "BDD7EE"  # active-row highlight: the table/grid row under the cursor
 LC = ["BBD4EA", "C2E5C9", "FBE7B2", "E5CDEE", "FAC4BC", "BFEAE0", "DCE7AE"]  # 8..20 fills
 LEN_NUMS = [8, 10, 12, 14, 16, 18, 20]
 COLS = list("ABCDEFGHIJKL")
@@ -284,21 +285,39 @@ def build_layout(path):
     fmt_block(pat, "A3:A240", "0")
     fmt_block(pat, "C3:J240", "0")       # lengths (C-I) + Rows to use (J)
 
-    # ---- pale-blue highlight on any row whose field is selected ----
+    # ---- row highlights (conditional formatting) ----
     pale = PatternFill(start_color=PALEBLUE, end_color=PALEBLUE, fill_type="solid")
+    live = PatternFill(start_color=LIGHTBLUE, end_color=LIGHTBLUE, fill_type="solid")
+
+    # (a) ACTIVE-ROW highlight: the table/grid row under the cursor stays light blue
+    # until you click another row. A Worksheet_SelectionChange stores the active row
+    # in the hidden helper cell $N$1 on each sheet (0 = none); these rules paint it.
+    # Highest priority + stopIfTrue so it shows on top of the pale "selected" fill.
+    for sh in (rec, pat):
+        sh["N1"] = 0
+        sh["N1"].number_format = ";;;"   # keep the helper invisible
+    def active_rule(prio, formula):
+        r = FormulaRule(formula=[formula], fill=live, stopIfTrue=True)
+        r.priority = prio
+        return r
+    rec.conditional_formatting.add("A23:L33", active_rule(1, "ROW()=$N$1"))   # tallies table A
+    rec.conditional_formatting.add("A37:L47", active_rule(2, "ROW()=$N$1"))   # tallies table B
+    pat.conditional_formatting.add("A3:I240", active_rule(1, "AND(ROW()=$N$1,ISNUMBER($A3))"))
+
+    # (b) SELECTED-FIELD highlight (pale blue), lower priority than the active row.
     # Length palette: a length is "selected" when its 7-row box (col B) is checked,
     # or its 5-row box (col C) is checked on a mixed 7+5 car (gated on B5 so a hidden
     # 5-row check from a previous mixed session doesn't light up a symmetric row).
-    rec.conditional_formatting.add(
-        "A11:C17",
-        FormulaRule(formula=['OR($B11=TRUE,AND($C11=TRUE,ISNUMBER(SEARCH("7+5",$B$5))))'],
-                    fill=pale, stopIfTrue=False))
+    pal_rule = FormulaRule(formula=['OR($B11=TRUE,AND($C11=TRUE,ISNUMBER(SEARCH("7+5",$B$5))))'],
+                           fill=pale, stopIfTrue=False)
+    pal_rule.priority = 3
+    rec.conditional_formatting.add("A11:C17", pal_rule)
     # Hand-build grids: a 72-ft row is "selected" when its Rows to use (col J) > 0.
     # (Excludes col J so its yellow input shading stays; banner/header/total rows have
     # non-numeric J and never match.)
-    pat.conditional_formatting.add(
-        "A3:I240",
-        FormulaRule(formula=['AND(ISNUMBER($J3),$J3>0)'], fill=pale, stopIfTrue=False))
+    grid_rule = FormulaRule(formula=['AND(ISNUMBER($J3),$J3>0)'], fill=pale, stopIfTrue=False)
+    grid_rule.priority = 2
+    pat.conditional_formatting.add("A3:I240", grid_rule)
 
     wb.save(path)
 
@@ -311,10 +330,14 @@ def build_layout(path):
 # ("Row = 72 ft") rather than a fixed row.
 SHEET_EVENT = "\r\n".join([
     "Private Sub Worksheet_SelectionChange(ByVal Target As Range)",
+    "    Dim rw As Long: rw = Target.Row",
+    "    Dim newv As Long",
+    "    If IsNumeric(Me.Cells(rw, 1).Value) And Len(CStr(Me.Cells(rw, 1).Value)) > 0 Then newv = rw Else newv = 0",
+    '    If Me.Range("N1").Value <> newv Then Me.Range("N1").Value = newv',
     "    If Target.Cells.Count <> 1 Then Exit Sub",
     "    If Target.Column < 3 Or Target.Column > 9 Then Exit Sub",
-    '    If CStr(Me.Cells(Target.Row, 2).Value) = "Row = 72 ft" Then',
-    "        SortPatternsBy Target.Column, Target.Row",
+    '    If CStr(Me.Cells(rw, 2).Value) = "Row = 72 ft" Then',
+    "        SortPatternsBy Target.Column, rw",
     "    End If",
     "End Sub",
 ])
@@ -325,6 +348,11 @@ SHEET_EVENT = "\r\n".join([
 # edit to the Car layout (B5) or Match mode (B6) re-runs the recommender.
 REC_EVENT = "\r\n".join([
     "Private Sub Worksheet_SelectionChange(ByVal Target As Range)",
+    "    Dim rw As Long: rw = Target.Row",
+    "    Dim newv As Long: newv = 0",
+    "    If ((rw >= 23 And rw <= 33) Or (rw >= 37 And rw <= 47)) _",
+    "       And IsNumeric(Me.Cells(rw, 1).Value) And Len(CStr(Me.Cells(rw, 1).Value)) > 0 Then newv = rw",
+    '    If Me.Range("N1").Value <> newv Then Me.Range("N1").Value = newv',
     "    If Target.Cells.Count <> 1 Then Exit Sub",
     "    If Target.Column < 3 Or Target.Column > 9 Then Exit Sub",
     "    If Target.Row = 22 Then SortRecsByRange Target.Column, 23, 33",
