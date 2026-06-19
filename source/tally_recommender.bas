@@ -20,6 +20,7 @@ Private Const REC_SHEET As String = "Recommender"
 Private Const PAT_SHEET As String = "Row Patterns"
 Private Const CAR_CELL As String = "B5"
 Private Const MODE_CELL As String = "B6"
+Private Const PAL_CELL As String = "B8"        ' colour-scheme picker
 Private Const PAL_FIRST As Integer = 11
 Private Const PAL7_COL As Integer = 2          ' column B = 7-row side / symmetric
 Private Const PAL5_COL As Integer = 3          ' column C = 5-row side (mixed)
@@ -248,13 +249,112 @@ End Function
 
 ' Color the 8'..20' header cells (cols 3..9) on row `hr` to match the length palette.
 Private Sub ColorLenHeaders(ws2 As Worksheet, ByVal hr As Long)
-    Dim fills As Variant
-    fills = Array(RGB(187, 212, 234), RGB(194, 229, 201), RGB(251, 231, 178), _
-                  RGB(229, 205, 238), RGB(250, 196, 188), RGB(191, 234, 224), RGB(220, 231, 174))
+    Dim pal As Long: pal = TallyPalette()
+    Dim Lv As Variant: Lv = Lengths()
     Dim i As Integer
     For i = 0 To 6
-        ws2.Cells(hr, 3 + i).Interior.Color = fills(i)
+        ColorOneLen ws2.Cells(hr, 3 + i), pal, CLng(Lv(i))
     Next i
+End Sub
+
+' ===== Colour schemes (12 selectable palettes; B8 picker, match the apps) =====
+' Length drives the fill. The picker recolors the length chips (A11:A17), both
+' recommendation tables' length headers, and every hand-build grid header.
+
+Private Function SchemeNames() As Variant
+    SchemeNames = Array("Color (pastel)", "Vivid", "Material", "Tableau", _
+        "Earth / lumberyard", "Jewel tones", "Rainbow (warm to cool)", _
+        "Viridis (colour-safe)", "Sunset (warm)", "Neon", "High contrast", "B & W (print)")
+End Function
+
+Private Function TallyPalette() As Long
+    On Error Resume Next
+    Dim v As String: v = Trim(CStr(ThisWorkbook.Worksheets(REC_SHEET).Range(PAL_CELL).Value & ""))
+    Dim nm As Variant: nm = SchemeNames()
+    Dim i As Long
+    For i = 0 To UBound(nm)
+        If StrComp(v, CStr(nm(i)), vbTextCompare) = 0 Then TallyPalette = i: Exit Function
+    Next i
+    TallyPalette = 0
+End Function
+
+Private Function PaletteHex(ByVal pal As Long) As Variant
+    Select Case pal
+        Case 1:  PaletteHex = Array("E53935", "FB8C00", "FDD835", "43A047", "00ACC1", "1E88E5", "8E24AA")
+        Case 2:  PaletteHex = Array("EF5350", "FFA726", "FFEE58", "66BB6A", "26C6DA", "42A5F5", "AB47BC")
+        Case 3:  PaletteHex = Array("4E79A7", "F28E2B", "E15759", "76B7B2", "59A14F", "EDC948", "B07AA1")
+        Case 4:  PaletteHex = Array("8C6239", "C9A66B", "7D8C4F", "B7410E", "2E5E4E", "D4A017", "5C3A21")
+        Case 5:  PaletteHex = Array("B71C1C", "E65100", "F9A825", "1B5E20", "00695C", "1A237E", "4A148C")
+        Case 6:  PaletteHex = Array("D32F2F", "F57C00", "FBC02D", "689F38", "0097A7", "1976D2", "7B1FA2")
+        Case 7:  PaletteHex = Array("440154", "443983", "31688E", "21918C", "35B779", "90D743", "FDE725")
+        Case 8:  PaletteHex = Array("5C1A33", "9D2B4A", "C44536", "E8590C", "F0A202", "F4C430", "F7E07A")
+        Case 9:  PaletteHex = Array("FF1744", "FF9100", "FFEA00", "00E676", "00E5FF", "2979FF", "D500F9")
+        Case 10: PaletteHex = Array("1F77B4", "2CA02C", "FF7F0E", "9467BD", "D62728", "17BECF", "8C564B")
+        Case 11: PaletteHex = Array("FFFFFF", "EEEEEE", "DDDDDD", "CCCCCC", "BBBBBB", "AAAAAA", "999999")
+        Case Else: PaletteHex = Array("BBD4EA", "C2E5C9", "FBE7B2", "E5CDEE", "FAC4BC", "BFEAE0", "DCE7AE")
+    End Select
+End Function
+
+Private Function LenIdx(ByVal L As Long) As Long
+    Select Case L
+        Case 8: LenIdx = 0
+        Case 10: LenIdx = 1
+        Case 12: LenIdx = 2
+        Case 14: LenIdx = 3
+        Case 16: LenIdx = 4
+        Case 18: LenIdx = 5
+        Case 20: LenIdx = 6
+        Case Else: LenIdx = -1
+    End Select
+End Function
+
+Private Function HexBGR(ByVal h As String) As Long
+    HexBGR = RGB(CLng("&H" & Mid$(h, 1, 2)), CLng("&H" & Mid$(h, 3, 2)), CLng("&H" & Mid$(h, 5, 2)))
+End Function
+
+Private Function LenColor(ByVal pal As Long, ByVal L As Long) As Long
+    Dim idx As Long: idx = LenIdx(L)
+    If idx < 0 Then LenColor = RGB(240, 240, 240): Exit Function
+    Dim arr As Variant: arr = PaletteHex(pal)
+    LenColor = HexBGR(CStr(arr(idx)))
+End Function
+
+Private Function BestText(ByVal c As Long) As Long
+    Dim r As Long, g As Long, b As Long
+    r = c And &HFF&
+    g = (c \ &H100) And &HFF&
+    b = (c \ &H10000) And &HFF&
+    If (0.299 * r + 0.587 * g + 0.114 * b) > 150 Then BestText = RGB(0, 0, 0) Else BestText = RGB(255, 255, 255)
+End Function
+
+Private Sub ColorOneLen(cell As Range, ByVal pal As Long, ByVal L As Long)
+    Dim col As Long: col = LenColor(pal, L)
+    cell.Interior.Color = col
+    cell.Font.Color = BestText(col)
+End Sub
+
+' Recolor every length-coloured cell to the scheme picked in B8.
+Public Sub ApplyTallyPalette()
+    Dim ws As Worksheet, ws2 As Worksheet
+    Set ws = ThisWorkbook.Worksheets(REC_SHEET)
+    Set ws2 = ThisWorkbook.Worksheets(PAT_SHEET)
+    Dim pal As Long: pal = TallyPalette()
+    Dim L As Variant: L = Lengths()
+    Dim i As Long, r As Long
+    Application.ScreenUpdating = False
+    For i = 0 To 6
+        ColorOneLen ws.Cells(PAL_FIRST + i, 1), pal, CLng(L(i))      ' length chips A11:A17
+        ColorOneLen ws.Cells(22, 3 + i), pal, CLng(L(i))            ' table A header
+        ColorOneLen ws.Cells(36, 3 + i), pal, CLng(L(i))            ' table B header
+    Next i
+    For r = 1 To PAT_REGION                                          ' every hand-build grid header
+        If CStr(ws2.Cells(r, 2).Value) = "Row = 72 ft" Then
+            For i = 0 To 6
+                ColorOneLen ws2.Cells(r, 3 + i), pal, CLng(L(i))
+            Next i
+        End If
+    Next r
+    Application.ScreenUpdating = True
 End Sub
 
 ' Write one hand-build grid (banner + header + 72-ft row patterns + a target-aware

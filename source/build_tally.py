@@ -159,6 +159,10 @@ def build_layout(path):
     list_validation(rec, "B5", "720 ft - 5+5 (10 rows),864 ft - 7+5 mixed (12 rows),1008 ft - 7+7 (14 rows)")
     list_validation(rec, "B6", "Palette - use only selected,Each selected must appear,Each must appear + fillers")
 
+    put(rec, "A8", "Color scheme:", bold=True, align=RIGHT)
+    put(rec, "B8", "Color (pastel)")
+    list_validation(rec, "B8", "Color (pastel),Vivid,Material,Tableau,Earth / lumberyard,Jewel tones,Rainbow (warm to cool),Viridis (colour-safe),Sunset (warm),Neon,High contrast,B & W (print)")
+
     banner(rec, "A9:C9", "LENGTH PALETTE", fill=HDRLT, bold=True)
     put(rec, "A10", "Length", bold=True, align=CENTER)
     # Reactive caption (the VBA rewrites B10 to match the car layout: one column for a
@@ -359,6 +363,12 @@ REC_EVENT = "\r\n".join([
     "    If Target.Row = 36 Then SortRecsByRange Target.Column, 37, 47",
     "End Sub",
     "Private Sub Worksheet_Change(ByVal Target As Range)",
+    "    If Not Intersect(Target, Me.Range(\"B8\")) Is Nothing Then",
+    "        Application.EnableEvents = False",
+    "        ApplyTallyPalette",
+    "        Application.EnableEvents = True",
+    "        Exit Sub",
+    "    End If",
     "    If Intersect(Target, Me.Range(\"B5:B6\")) Is Nothing Then Exit Sub",
     "    Application.EnableEvents = False",
     "    RecommendTallies",
@@ -473,6 +483,7 @@ def inject_macros(src_xlsx, out_xlsm):
         # seed an example run so the file is populated on open
         rec.Activate()
         excel.Run("RecommendTallies")
+        excel.Run("ApplyTallyPalette")   # apply the default colour scheme (and set fonts)
         print("      .. seeded; saving .xlsm", flush=True)
 
         if os.path.exists(out_xlsm):
