@@ -92,6 +92,9 @@
   table.t{border-collapse:collapse;font-size:12px;margin-bottom:14px}
   table.t th{background:var(--bg3);color:var(--text3);font-weight:600;text-transform:uppercase;font-size:9px;letter-spacing:.04em;padding:5px 8px;border:1px solid var(--border);text-align:center}
   table.t td{padding:4px 8px;border:1px solid var(--border);text-align:center;white-space:nowrap}
+  /* click-to-highlight: the active table row stays light blue until another is clicked */
+  table.t tbody tr{cursor:pointer}
+  table.t tbody tr.activerow td{background:#bdd7ee!important;color:#15314e!important}
   .secttitle{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--green2);margin:14px 0 6px}
   .rowlbl{font-weight:700;color:var(--green2)}
   .cell-pack{color:#fff;font-weight:700;font-size:11px;border-width:2px!important;border-style:solid!important}
@@ -791,7 +794,14 @@ function toggleTheme(){
   render();
 }
 
-window.addEventListener("load",()=>{ initTheme(); init(); zoomFit(); });
+// Click any table row to highlight it; it stays lit until another row is clicked.
+function rowHighlight(ev){
+  const tr=ev.target.closest("table.t tbody tr");
+  if(!tr) return;
+  document.querySelectorAll("table.t tbody tr.activerow").forEach(r=>r.classList.remove("activerow"));
+  tr.classList.add("activerow");
+}
+window.addEventListener("load",()=>{ initTheme(); init(); zoomFit(); document.addEventListener("click",rowHighlight); });
 window.addEventListener("resize",()=>{ if(state.tab==="visual") zoomFit(); });
 </script>
 </body>
