@@ -145,11 +145,7 @@
     <div class="sec">Length Colors</div>
     <div>
       <label>Color palette</label>
-      <select id="paletteSel" onchange="setPalette(this.value)">
-        <option value="0">Color</option>
-        <option value="1">High contrast</option>
-        <option value="2">B &amp; W (print)</option>
-      </select>
+      <select id="paletteSel" onchange="setPalette(this.value)"></select>
     </div>
     <div class="legend" id="legend"></div>
   </div>
@@ -173,15 +169,29 @@ const LENGTHS=[8,10,12,14,16,18,20];
 const LCOLORS={8:"#BBD4EA",10:"#C2E5C9",12:"#FBE7B2",14:"#E5CDEE",16:"#FAC4BC",18:"#BFEAE0",20:"#DCE7AE"};
 const INK="#33414f";
 
-// ---------- Length color palettes (match the Layout Planner) ----------
-// 0 = Color (pastel "Sorbet"), 1 = High contrast, 2 = B & W (print).
-const PALETTES=["Color","High contrast","B & W (print)"];
-const HC_LEN={8:"#1F77B4",10:"#2CA02C",12:"#FF7F0E",14:"#9467BD",16:"#D62728",18:"#17BECF",20:"#8C564B"};
-const BW_LEN={8:"#FFFFFF",10:"#EEEEEE",12:"#DDDDDD",14:"#CCCCCC",16:"#BBBBBB",18:"#AAAAAA",20:"#999999"};
+// ---------- Length color schemes (shared with the Layout Planner) ----------
+// 0 = Color (pastel, the default). The rest are selectable; the last two are the
+// colourblind-friendly High contrast and the grayscale B & W (print) modes.
+const SCHEMES=[
+  {name:"Color (pastel)",         m:LCOLORS},
+  {name:"Vivid",                  m:{8:"#E53935",10:"#FB8C00",12:"#FDD835",14:"#43A047",16:"#00ACC1",18:"#1E88E5",20:"#8E24AA"}},
+  {name:"Material",               m:{8:"#EF5350",10:"#FFA726",12:"#FFEE58",14:"#66BB6A",16:"#26C6DA",18:"#42A5F5",20:"#AB47BC"}},
+  {name:"Tableau",                m:{8:"#4E79A7",10:"#F28E2B",12:"#E15759",14:"#76B7B2",16:"#59A14F",18:"#EDC948",20:"#B07AA1"}},
+  {name:"Earth / lumberyard",     m:{8:"#8C6239",10:"#C9A66B",12:"#7D8C4F",14:"#B7410E",16:"#2E5E4E",18:"#D4A017",20:"#5C3A21"}},
+  {name:"Jewel tones",            m:{8:"#B71C1C",10:"#E65100",12:"#F9A825",14:"#1B5E20",16:"#00695C",18:"#1A237E",20:"#4A148C"}},
+  {name:"Rainbow (warm to cool)", m:{8:"#D32F2F",10:"#F57C00",12:"#FBC02D",14:"#689F38",16:"#0097A7",18:"#1976D2",20:"#7B1FA2"}},
+  {name:"Viridis (colour-safe)",  m:{8:"#440154",10:"#443983",12:"#31688E",14:"#21918C",16:"#35B779",18:"#90D743",20:"#FDE725"}},
+  {name:"Sunset (warm)",          m:{8:"#5C1A33",10:"#9D2B4A",12:"#C44536",14:"#E8590C",16:"#F0A202",18:"#F4C430",20:"#F7E07A"}},
+  {name:"Neon",                   m:{8:"#FF1744",10:"#FF9100",12:"#FFEA00",14:"#00E676",16:"#00E5FF",18:"#2979FF",20:"#D500F9"}},
+  {name:"High contrast",          m:{8:"#1F77B4",10:"#2CA02C",12:"#FF7F0E",14:"#9467BD",16:"#D62728",18:"#17BECF",20:"#8C564B"}},
+  {name:"B & W (print)",          m:{8:"#FFFFFF",10:"#EEEEEE",12:"#DDDDDD",14:"#CCCCCC",16:"#BBBBBB",18:"#AAAAAA",20:"#999999"}}
+];
 function bestText(hex){ const r=parseInt(hex.substr(1,2),16),g=parseInt(hex.substr(3,2),16),b=parseInt(hex.substr(5,2),16);
   return (0.299*r+0.587*g+0.114*b)>150?"#000000":"#FFFFFF"; }
-function lenFill(L){ const p=state.palette; return p===0?LCOLORS[L]:p===1?HC_LEN[L]:BW_LEN[L]; }
+function lenFill(L){ return SCHEMES[state.palette].m[L]; }
 function lenText(L){ return state.palette===0?INK:bestText(lenFill(L)); }
+function populatePalettes(){ const s=document.getElementById("paletteSel");
+  s.innerHTML=SCHEMES.map((p,i)=>`<option value="${i}">${p.name}</option>`).join(""); s.value=String(state.palette); }
 function setPalette(v){ state.palette=+v; renderPalette(); renderLegend(); render(); }
 
 const TARGET=72, MAX_RECS=15;
@@ -465,7 +475,7 @@ function rowHighlight(ev){
 }
 
 window.addEventListener("load",()=>{
-  initTheme(); renderPalette(); renderLegend(); renderHelp();
+  initTheme(); populatePalettes(); renderPalette(); renderLegend(); renderHelp();
   document.getElementById("modeHint").textContent=MODE_TEXT[+document.getElementById("mode").value];
   document.addEventListener("click",rowHighlight);   // click-to-highlight rows
   recommend();  // seed an example on open
