@@ -199,7 +199,9 @@ let state={
   A:null, B:null,  // {patterns, recs} per side          (mixed)
   recSort:null,    // length to sort recs by (desc), or null = default order
   patSort:null,    // length to sort patterns by
-  handBuild:{}     // patternIndex -> rows to use
+  handBuild:{},    // patternIndex -> rows to use (symmetric)
+  handBuildA:{},   // mixed 7-row side: patternIndex -> rows to use
+  handBuildB:{}    // mixed 5-row side: patternIndex -> rows to use
 };
 // --- car layout -> per-side rows ---
 function layoutRows(l){ return l==="7+5"?{a:7,b:5,mixed:true}:l==="7+7"?{a:7,b:7,mixed:false}:{a:5,b:5,mixed:false}; }
@@ -267,7 +269,7 @@ function recommendForRows(selSet, rows, mode){
 // ---- main recommend: one car (symmetric) or two independent sides (mixed 7+5) ----
 function recommend(){
   const mode=+document.getElementById("mode").value;
-  state.handBuild={};
+  state.handBuild={}; state.handBuildA={}; state.handBuildB={};
   if(isMixed()){
     const R=layoutRows(state.carLayout);
     state.A=recommendForRows(state.selA, R.a, mode);
@@ -290,7 +292,7 @@ function makeRec(label,counts,carRows){ const ft=ftOf(counts); return {label,cou
 
 function setStatus(kind,msg){ const s=document.getElementById("status"); s.className="alert "+(kind==="ok"?"ok":"warn"); s.textContent=msg; }
 function clearOut(){
-  state.patterns=[]; state.recs=[]; state.A=null; state.B=null; state.recSort=null; state.patSort=null; state.handBuild={};
+  state.patterns=[]; state.recs=[]; state.A=null; state.B=null; state.recSort=null; state.patSort=null; state.handBuild={}; state.handBuildA={}; state.handBuildB={};
   setStatus("ok","Cleared. Choose options and click Recommend Tallies.");
   render();
 }
@@ -329,47 +331,58 @@ function renderRecs(){
   }
 }
 
-function patternsTableHTML(patterns, title, handBuild){
+// hand-build context per table: "S"=symmetric car, "A"=7-row side, "B"=5-row side
+function hbCtx(key){
+  if(key==="A") return {pats:(state.A&&state.A.patterns)||[], map:state.handBuildA, target:layoutRows(state.carLayout).a};
+  if(key==="B") return {pats:(state.B&&state.B.patterns)||[], map:state.handBuildB, target:layoutRows(state.carLayout).b};
+  return {pats:state.patterns, map:state.handBuild, target:totalRows()};
+}
+function patternsTableHTML(patterns, title, key, targetRows){
   if(!patterns || patterns.length===0) return `<div class="secttitle">${title}</div><div class="muted">No patterns yet — pick lengths and click <b>Recommend Tallies</b>.</div>`;
   let rows=patterns.map((c,i)=>({c,i}));
   if(state.patSort!=null) rows.sort((a,b)=>(b.c[state.patSort]||0)-(a.c[state.patSort]||0));
-  let h=`<div class="secttitle">${title} <span class="note">(${handBuild?"building blocks — click a length header to sort; type Rows to use to hand-build a car":"click a length header to sort"})</span></div>`;
-  h+=`<table class="t"><thead><tr><th>#</th><th>Row = 72 ft</th>${lenHeaders("pat")}${handBuild?"<th>Rows to use</th>":""}</tr></thead><tbody>`;
+  const map=hbCtx(key).map;
+  const aim=targetRows?`type Rows to use to hand-build this side — aim for ${targetRows} rows`:"type Rows to use to hand-build a car";
+  let h=`<div class="secttitle">${title} <span class="note">(building blocks — click a length header to sort; ${aim})</span></div>`;
+  h+=`<table class="t"><thead><tr><th>#</th><th>Row = 72 ft</th>${lenHeaders("pat")}<th>Rows to use</th></tr></thead><tbody>`;
   rows.forEach((o,i)=>{
     h+=`<tr><td>${i+1}</td><td class="rowlbl">${rowLabel(o.c)}</td>`;
     LENGTHS.forEach(L=>h+=lenCell(o.c[L],L));
-    if(handBuild) h+=`<td><input class="rinput" type="number" min="0" value="${state.handBuild[o.i]||""}" oninput="setRows(${o.i},this.value)"></td>`;
+    h+=`<td><input class="rinput" type="number" min="0" value="${map[o.i]||""}" oninput="setRows('${key}',${o.i},this.value)"></td>`;
     h+=`</tr>`;
   });
-  if(handBuild){
-    h+=`<tr class="totrow"><td></td><td class="rowlbl">YOUR HAND-BUILT TALLY</td>`;
-    LENGTHS.forEach(L=>h+=`<td id="tot-${L}"></td>`);
-    h+=`<td id="tot-rows">0 rows</td></tr>`;
-  }
+  h+=`<tr class="totrow"><td></td><td class="rowlbl">YOUR HAND-BUILT TALLY</td>`;
+  LENGTHS.forEach(L=>h+=`<td id="tot-${key}-${L}"></td>`);
+  h+=`<td id="tot-${key}-rows">0 rows</td></tr>`;
   return h+`</tbody></table>`;
 }
 function renderPatterns(){
   const box=document.getElementById("patBox");
   if(isMixed()){
+    const R=layoutRows(state.carLayout);
     const A=state.A||{patterns:[]}, B=state.B||{patterns:[]};
-    box.innerHTML = patternsTableHTML(A.patterns, "🟩 7‑row side — Valid 72-ft Row Patterns", false)
+    box.innerHTML = patternsTableHTML(A.patterns, "🟩 7‑row side — Valid 72-ft Row Patterns", "A", R.a)
       + `<div style="height:16px"></div>`
-      + patternsTableHTML(B.patterns, "🟦 5‑row side — Valid 72-ft Row Patterns", false);
+      + patternsTableHTML(B.patterns, "🟦 5‑row side — Valid 72-ft Row Patterns", "B", R.b);
+    updateHandTotal("A"); updateHandTotal("B");
   } else {
-    box.innerHTML = patternsTableHTML(state.patterns, "Valid 72-ft Row Patterns", true);
-    updateHandTotal();
+    box.innerHTML = patternsTableHTML(state.patterns, "Valid 72-ft Row Patterns", "S", totalRows());
+    updateHandTotal("S");
   }
 }
-function setRows(idx,val){
+function setRows(key,idx,val){
+  const map=hbCtx(key).map;
   const n=parseInt(val,10);
-  if(!val||isNaN(n)||n<=0) delete state.handBuild[idx]; else state.handBuild[idx]=n;
-  updateHandTotal();
+  if(!val||isNaN(n)||n<=0) delete map[idx]; else map[idx]=n;
+  updateHandTotal(key);
 }
-function updateHandTotal(){
+function updateHandTotal(key){
+  const {pats,map,target}=hbCtx(key);
   const tot={}; LENGTHS.forEach(L=>tot[L]=0); let rows=0;
-  state.patterns.forEach((c,i)=>{ const n=+state.handBuild[i]||0; if(n>0){ rows+=n; LENGTHS.forEach(L=>tot[L]+=c[L]*n); } });
-  LENGTHS.forEach(L=>{ const el=document.getElementById("tot-"+L); if(el) el.textContent=tot[L]||""; });
-  const r=document.getElementById("tot-rows"); if(r) r.textContent=rows+" rows";
+  pats.forEach((c,i)=>{ const n=+map[i]||0; if(n>0){ rows+=n; LENGTHS.forEach(L=>tot[L]+=c[L]*n); } });
+  LENGTHS.forEach(L=>{ const el=document.getElementById("tot-"+key+"-"+L); if(el) el.textContent=tot[L]||""; });
+  const r=document.getElementById("tot-"+key+"-rows");
+  if(r){ r.textContent=rows+" / "+target+" rows"+(rows===target?"  ✓":""); r.style.color=(rows===target)?"#2f7d4f":""; }
 }
 
 function sortBy(kind,L){
@@ -417,7 +430,7 @@ function renderHelp(){
     <h3>Recommended Tallies</h3>
     <p>Each row is a ready-to-load car: the piece count per length, total pieces, total feet (always rows × 72), and an OK check. <b>Click any length column header</b> to sort by that length, most first.</p>
     <h3>Row Patterns</h3>
-    <p>Every way to fill a single 72-ft row from your lengths. Click a length header to sort. To hand-build a mixed car, type how many <b>Rows to use</b> of each pattern; the <b>YOUR HAND-BUILT TALLY</b> line totals the pieces per length and the row count — make the rows match your car size (10 or 14).</p>
+    <p>Every way to fill a single 72-ft row from your lengths. Click a length header to sort. To hand-build a car, type how many <b>Rows to use</b> of each pattern; the <b>YOUR HAND-BUILT TALLY</b> line totals the pieces per length and shows the running <b>rows / target</b> (a ✓ when they match). On a <b>mixed 7+5</b> car each side gets its own pattern table with its own <b>Rows to use</b> column, so you build the 7‑row side to 7 rows and the 5‑row side to 5 rows independently.</p>
     <h3>Color palette</h3>
     <p>Switch the <b>Length Colors</b> between <code>Color</code> (the pastel scheme), <code>High contrast</code> (saturated, maximally distinct), and <code>B &amp; W (print)</code> (grayscale) — the palette checkboxes, the legend, and every table recolor to match. Use <b>B &amp; W</b> for clean black-and-white printouts. (Matches the Layout Planner's Manifest palette.)</p>
     <h3>Notes</h3>
