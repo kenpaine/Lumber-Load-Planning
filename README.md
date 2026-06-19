@@ -107,11 +107,19 @@ Manifest. Light / dark theme.
 
 Macro‑enabled workbook with a checkbox length palette, a **Car layout** selector
 (5+5 / **7+5 mixed** / 7+7), colored **Recommend Tallies** / **Clear** buttons, sortable
-recommendation tables, a **Row Patterns** tab, and a built‑in **How to Use** tab. For a
-**mixed 7+5** car it shows a 7‑row‑side checkbox column and a 5‑row‑side column and
-recommends each side independently (504 ft + 360 ft). Click *Enable Content* on open.
+recommendation tables, a **Row Patterns** tab, and a built‑in **How to Use** tab. The
+palette is **reactive**: a symmetric 5+5 / 7+7 car shows a single length column, while a
+**mixed 7+5** car reveals a second column — left boxes = 7‑row side, right = 5‑row side —
+and recommends each side independently (504 ft + 360 ft). Click *Enable Content* on open.
 
 ![Centerbeam Tally Recommender — Excel workbook](tally_excel_screenshot.png)
+
+On the **Row Patterns** tab you can **hand‑build a car** by typing how many *Rows to use*
+of each 72‑ft pattern; the **YOUR HAND‑BUILT TALLY** line totals the pieces per length and
+shows the running *rows / target* (an **OK** appears when they match). A mixed 7+5 car gets
+**two independent grids** — the 7‑row side (aim for 7 rows) and the 5‑row side (aim for 5):
+
+![Centerbeam Tally Recommender — per‑side hand‑build grids (Excel)](tally_handbuild_screenshot.png)
 
 ### How it works
 
@@ -127,7 +135,8 @@ recommends each side independently (504 ft + 360 ft). Click *Enable Content* on 
   pieces, total feet (always rows × 72), and an OK check. **Click any length header to sort.**
 - **Row Patterns** — every way to fill a single 72‑ft row from your lengths (the building
   blocks). Click a length header to sort, or type **Rows to use** to hand‑build a custom car;
-  the running total updates live.
+  the running total shows *rows / target* with an **OK** when it matches. A **mixed 7+5** car
+  splits this into two independent grids — one per side (aim for 7 rows / aim for 5 rows).
 - **Color palette** (browser app) — switch the length colors between **Color** (pastel),
   **High contrast** (saturated), and **B & W (print)** (grayscale); the palette checkboxes,
   legend, and every table recolor to match. Use **B & W** for clean black‑and‑white printouts.
