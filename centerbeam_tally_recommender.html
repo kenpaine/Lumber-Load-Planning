@@ -69,6 +69,9 @@
   .rinput{width:56px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:12px;text-align:center;outline:none}
   .rinput:focus{border-color:var(--green)}
   .totrow td{background:var(--bg3);font-weight:700;border-top:2px solid var(--green)}
+  /* click-to-highlight: the active table/grid row stays light blue until another is clicked */
+  table.t tbody tr:not(.totrow){cursor:pointer}
+  table.t tbody tr.activerow td{background:#bdd7ee!important;color:#15314e!important}
   .htext{font-size:13px;line-height:1.7;color:var(--text2);max-width:760px}
   .htext h3{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--green2);margin:16px 0 6px}
   .htext code{background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:12px}
@@ -453,9 +456,18 @@ function applyTheme(t){
 function initTheme(){ let s="dark"; try{ s=localStorage.getItem("ctr-theme")||"dark"; }catch(e){} applyTheme(s); }
 function toggleTheme(){ applyTheme(state.theme==="light"?"dark":"light"); try{ localStorage.setItem("ctr-theme",state.theme); }catch(e){} }
 
+// Click any tallies/pattern row to highlight it; it stays lit until another row is clicked.
+function rowHighlight(ev){
+  const tr=ev.target.closest("table.t tbody tr");
+  if(!tr || tr.classList.contains("totrow")) return;   // ignore headers and the hand-build total
+  document.querySelectorAll("table.t tbody tr.activerow").forEach(r=>r.classList.remove("activerow"));
+  tr.classList.add("activerow");
+}
+
 window.addEventListener("load",()=>{
   initTheme(); renderPalette(); renderLegend(); renderHelp();
   document.getElementById("modeHint").textContent=MODE_TEXT[+document.getElementById("mode").value];
+  document.addEventListener("click",rowHighlight);   // click-to-highlight rows
   recommend();  // seed an example on open
 });
 </script>
