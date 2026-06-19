@@ -207,6 +207,7 @@
     <div id="loadAlert"></div>
 
     <div class="sec">Length Colors (fill)</div>
+    <select id="paletteSelP" onchange="setPalette(this.value)" style="margin-bottom:8px"></select>
     <div class="legend" id="legendLength"></div>
     <div class="sec">Product Colors (border)</div>
     <div class="legend" id="legendProduct"></div>
@@ -264,16 +265,29 @@ const CV_THEME={
 // ---------- Manifest color palettes (match the .xlsm) ----------
 // 0 = Color (pastel "Sorbet"), 1 = High contrast, 2 = B & W (print).
 // Length drives the fill; product/grade ride along in each pack label.
-const PALETTES=["Color","High contrast","B & W (print)"];
-const HC_LEN={8:"#1F77B4",10:"#2CA02C",12:"#FF7F0E",14:"#9467BD",16:"#D62728",18:"#17BECF",20:"#8C564B"};
-const BW_LEN={8:"#FFFFFF",10:"#EEEEEE",12:"#DDDDDD",14:"#CCCCCC",16:"#BBBBBB",18:"#AAAAAA",20:"#999999"};
+const SCHEMES=[
+  {name:"Color (pastel)",         m:LCOLORS},
+  {name:"Vivid",                  m:{8:"#E53935",10:"#FB8C00",12:"#FDD835",14:"#43A047",16:"#00ACC1",18:"#1E88E5",20:"#8E24AA"}},
+  {name:"Material",               m:{8:"#EF5350",10:"#FFA726",12:"#FFEE58",14:"#66BB6A",16:"#26C6DA",18:"#42A5F5",20:"#AB47BC"}},
+  {name:"Tableau",                m:{8:"#4E79A7",10:"#F28E2B",12:"#E15759",14:"#76B7B2",16:"#59A14F",18:"#EDC948",20:"#B07AA1"}},
+  {name:"Earth / lumberyard",     m:{8:"#8C6239",10:"#C9A66B",12:"#7D8C4F",14:"#B7410E",16:"#2E5E4E",18:"#D4A017",20:"#5C3A21"}},
+  {name:"Jewel tones",            m:{8:"#B71C1C",10:"#E65100",12:"#F9A825",14:"#1B5E20",16:"#00695C",18:"#1A237E",20:"#4A148C"}},
+  {name:"Rainbow (warm to cool)", m:{8:"#D32F2F",10:"#F57C00",12:"#FBC02D",14:"#689F38",16:"#0097A7",18:"#1976D2",20:"#7B1FA2"}},
+  {name:"Viridis (colour-safe)",  m:{8:"#440154",10:"#443983",12:"#31688E",14:"#21918C",16:"#35B779",18:"#90D743",20:"#FDE725"}},
+  {name:"Sunset (warm)",          m:{8:"#5C1A33",10:"#9D2B4A",12:"#C44536",14:"#E8590C",16:"#F0A202",18:"#F4C430",20:"#F7E07A"}},
+  {name:"Neon",                   m:{8:"#FF1744",10:"#FF9100",12:"#FFEA00",14:"#00E676",16:"#00E5FF",18:"#2979FF",20:"#D500F9"}},
+  {name:"High contrast",          m:{8:"#1F77B4",10:"#2CA02C",12:"#FF7F0E",14:"#9467BD",16:"#D62728",18:"#17BECF",20:"#8C564B"}},
+  {name:"B & W (print)",          m:{8:"#FFFFFF",10:"#EEEEEE",12:"#DDDDDD",14:"#CCCCCC",16:"#BBBBBB",18:"#AAAAAA",20:"#999999"}}
+];
 function bestText(hex){ const r=parseInt(hex.substr(1,2),16),g=parseInt(hex.substr(3,2),16),b=parseInt(hex.substr(5,2),16);
   return (0.299*r+0.587*g+0.114*b)>150?"#000000":"#FFFFFF"; }
-function lenFill(L){ const p=state.palette; return p===0?LCOLORS[L]:p===1?HC_LEN[L]:BW_LEN[L]; }
+function lenFill(L){ return SCHEMES[state.palette].m[L]; }
 function lenText(L){ return state.palette===0?INK:bestText(lenFill(L)); }
 function packBorder(c){ return state.palette===0?PCOLORS[c.product]:"#000000"; }
 function packText(c){ return state.palette===0?GFONT[c.grade]:bestText(lenFill(c.length)); }
-function setPalette(v){ state.palette=+v; renderManifest(); }
+function populatePalettes(){ const s=document.getElementById("paletteSelP"); if(!s) return;
+  s.innerHTML=SCHEMES.map((p,i)=>`<option value="${i}">${p.name}</option>`).join(""); s.value=String(state.palette); }
+function setPalette(v){ state.palette=+v; const s=document.getElementById("paletteSelP"); if(s) s.value=String(state.palette); renderAll(); }
 
 let state={numRows:10,carLayout:"5+5",split:{aRows:5,bRows:5,aTag:5,bTag:5,mixed:false},addSide:7,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2",palette:0};
 
@@ -552,7 +566,7 @@ function renderStats(){
   else { a.innerHTML=`<div class="alert warn"><span class="adot"></span>Add packs, then Solve Layout.</div>`; }
 }
 function buildLegends(){
-  document.getElementById("legendLength").innerHTML=LENGTHS.map(L=>`<span class="lswatch" style="background:${LCOLORS[L]}">${L}'</span>`).join("");
+  document.getElementById("legendLength").innerHTML=LENGTHS.map(L=>`<span class="lswatch" style="background:${lenFill(L)};color:${lenText(L)}">${L}'</span>`).join("");
   document.getElementById("legendProduct").innerHTML=PRODUCTS.map(p=>`<span class="lgrade" style="border-color:${PCOLORS[p]};color:var(--text2);background:var(--bg3)">${p}</span>`).join("");
   document.getElementById("legendGrade").innerHTML=GRADES.map(g=>`<span class="lswatch" style="background:#ebede6;color:${GFONT[g]}">${g}</span>`).join("");
 }
@@ -586,10 +600,10 @@ function render(){
     let cur=0;
     for(const c of row){
       const px=padX+cur*pxft, pw=c.length*pxft, dy=rowY+2*z, dh=rowH-4*z;
-      ctx.fillStyle=LCOLORS[c.length]||"#888"; ctx.fillRect(px,dy,pw-1*z,dh);
-      ctx.strokeStyle=PCOLORS[c.product]||"#fff"; ctx.lineWidth=Math.max(2,3.5*z); ctx.strokeRect(px+1.8*z,dy+1.8*z,pw-3.6*z-1*z,dh-3.6*z);
-      if(pw>34*z){ ctx.fillStyle=GFONT[c.grade]||"#fff"; ctx.font=`bold ${Math.round(Math.min(9,8.5*z))}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(`${c.product}·${c.length}·${c.grade}`,px+pw/2,rowY+rowH/2); }
-      else if(pw>14*z){ ctx.fillStyle=GFONT[c.grade]||"#fff"; ctx.font=`bold ${Math.round(8*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(c.length+"'",px+pw/2,rowY+rowH/2); }
+      ctx.fillStyle=lenFill(c.length)||"#888"; ctx.fillRect(px,dy,pw-1*z,dh);
+      ctx.strokeStyle=packBorder(c)||"#fff"; ctx.lineWidth=Math.max(2,3.5*z); ctx.strokeRect(px+1.8*z,dy+1.8*z,pw-3.6*z-1*z,dh-3.6*z);
+      if(pw>34*z){ ctx.fillStyle=packText(c)||"#fff"; ctx.font=`bold ${Math.round(Math.min(9,8.5*z))}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(`${c.product}·${c.length}·${c.grade}`,px+pw/2,rowY+rowH/2); }
+      else if(pw>14*z){ ctx.fillStyle=packText(c)||"#fff"; ctx.font=`bold ${Math.round(8*z)}px 'Segoe UI'`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(c.length+"'",px+pw/2,rowY+rowH/2); }
       cur+=c.length;
     }
     if(exact){ ctx.fillStyle=C.exactMark; ctx.fillRect(padX+carPx-2*z,rowY+3*z,2*z,rowH-6*z); }
@@ -617,7 +631,7 @@ function render(){
   const uL=new Set(),uP=new Set(),uG=new Set();
   state.rows.forEach(r=>r.forEach(c=>{uL.add(c.length);uP.add(c.product);uG.add(c.grade);}));
   let lh="";
-  [...uL].sort((a,b)=>a-b).forEach(L=>lh+=`<span class="li"><span class="lib" style="background:${LCOLORS[L]}"></span>${L}'</span>`);
+  [...uL].sort((a,b)=>a-b).forEach(L=>lh+=`<span class="li"><span class="lib" style="background:${lenFill(L)}"></span>${L}'</span>`);
   [...uP].forEach(p=>lh+=`<span class="li"><span class="lib" style="background:var(--bg3);border:2.5px solid ${PCOLORS[p]}"></span>${p}</span>`);
   [...uG].forEach(g=>lh+=`<span class="li"><span style="color:${GFONT[g]};background:#ebede6;padding:1px 5px;border-radius:2px;font-weight:700">${g}</span></span>`);
   document.getElementById("legendBar").innerHTML=lh||'<span class="muted" style="font-size:10px">No load yet</span>';
@@ -724,7 +738,7 @@ function renderManifest(){
   let h=`<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap">
     <div class="secttitle" style="margin:0">Load Manifest</div>
     <label class="mf-pal">Palette
-      <select onchange="setPalette(this.value)">${PALETTES.map((p,i)=>`<option value="${i}" ${state.palette===i?"selected":""}>${p}</option>`).join("")}</select>
+      <select onchange="setPalette(this.value)">${SCHEMES.map((p,i)=>`<option value="${i}" ${state.palette===i?"selected":""}>${p.name}</option>`).join("")}</select>
     </label>
     <button class="btn printbtn" onclick="window.print()">🖨 Print (1 page)</button></div>`;
   h+=`<div class="manifest-head">
@@ -759,11 +773,11 @@ function renderPatterns(){
   pats.sort((a,b)=>{ if(a.length!==b.length) return a.length-b.length; return cmpRows(a,b); });
   let h=`<div class="secttitle">Valid 72‑ft Length Patterns (color‑coded by length)</div>`;
   h+=`<table class="t"><thead><tr><th>#</th><th>Lengths</th>`;
-  LENGTHS.forEach(L=>h+=`<th style="background:${LCOLORS[L]};color:${INK}">${L}'</th>`);
+  LENGTHS.forEach(L=>h+=`<th style="background:${lenFill(L)};color:${lenText(L)}">${L}'</th>`);
   h+=`<th>Total</th></tr></thead><tbody>`;
   pats.forEach((p,i)=>{ const cnt={}; p.forEach(x=>cnt[x]=(cnt[x]||0)+1);
     h+=`<tr><td>${i+1}</td><td style="text-align:left">${p.join("  ")}</td>`;
-    LENGTHS.forEach(L=>{ const v=cnt[L]||0; h+=`<td style="${v?`background:${LCOLORS[L]};color:${INK};font-weight:700`:""}">${v||""}</td>`; });
+    LENGTHS.forEach(L=>{ const v=cnt[L]||0; h+=`<td style="${v?`background:${lenFill(L)};color:${lenText(L)};font-weight:700`:""}">${v||""}</td>`; });
     h+=`<td style="font-weight:700">72</td></tr>`; });
   h+=`</tbody></table>`;
   document.getElementById("patterns").innerHTML=h;
@@ -801,7 +815,7 @@ function rowHighlight(ev){
   document.querySelectorAll("table.t tbody tr.activerow").forEach(r=>r.classList.remove("activerow"));
   tr.classList.add("activerow");
 }
-window.addEventListener("load",()=>{ initTheme(); init(); zoomFit(); document.addEventListener("click",rowHighlight); });
+window.addEventListener("load",()=>{ initTheme(); init(); zoomFit(); populatePalettes(); document.addEventListener("click",rowHighlight); });
 window.addEventListener("resize",()=>{ if(state.tab==="visual") zoomFit(); });
 </script>
 </body>
