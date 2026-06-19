@@ -31,6 +31,7 @@ import tempfile
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.formatting.rule import FormulaRule
 from openpyxl.worksheet.datavalidation import DataValidation
 
 # ----------------------------------------------------------------------------
@@ -46,6 +47,7 @@ BAS = os.path.join(HERE, "tally_recommender.bas")
 # ----------------------------------------------------------------------------
 NAVY, INK, WHITE = "1F4E79", "33414F", "FFFFFF"
 HDRLT, STATUSF, NOTEF = "DDE6ED", "EAF0E6", "F0F4F8"
+PALEBLUE = "DDEBF7"   # row highlight when a field in that row is selected
 LC = ["BBD4EA", "C2E5C9", "FBE7B2", "E5CDEE", "FAC4BC", "BFEAE0", "DCE7AE"]  # 8..20 fills
 LEN_NUMS = [8, 10, 12, 14, 16, 18, 20]
 COLS = list("ABCDEFGHIJKL")
@@ -281,6 +283,22 @@ def build_layout(path):
     # below row 103 on a mixed car); keep counts centered as integers.
     fmt_block(pat, "A3:A240", "0")
     fmt_block(pat, "C3:J240", "0")       # lengths (C-I) + Rows to use (J)
+
+    # ---- pale-blue highlight on any row whose field is selected ----
+    pale = PatternFill(start_color=PALEBLUE, end_color=PALEBLUE, fill_type="solid")
+    # Length palette: a length is "selected" when its 7-row box (col B) is checked,
+    # or its 5-row box (col C) is checked on a mixed 7+5 car (gated on B5 so a hidden
+    # 5-row check from a previous mixed session doesn't light up a symmetric row).
+    rec.conditional_formatting.add(
+        "A11:C17",
+        FormulaRule(formula=['OR($B11=TRUE,AND($C11=TRUE,ISNUMBER(SEARCH("7+5",$B$5))))'],
+                    fill=pale, stopIfTrue=False))
+    # Hand-build grids: a 72-ft row is "selected" when its Rows to use (col J) > 0.
+    # (Excludes col J so its yellow input shading stays; banner/header/total rows have
+    # non-numeric J and never match.)
+    pat.conditional_formatting.add(
+        "A3:I240",
+        FormulaRule(formula=['AND(ISNUMBER($J3),$J3>0)'], fill=pale, stopIfTrue=False))
 
     wb.save(path)
 
