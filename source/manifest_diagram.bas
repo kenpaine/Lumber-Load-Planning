@@ -234,22 +234,34 @@ Public Sub RedrawManifestButton()
     DrawManifestDiagram
 End Sub
 
-' ===== Color palettes =====
-' The user picks a palette in cell N2 (off the print area). Three options:
-'   0 = Color (current pastel "Sorbet" scheme — reads the live Planner grid colors)
-'   1 = High contrast (saturated, distinct fills with black borders/auto text)
-'   2 = Black & white (grayscale fills for clean printing)
+' ===== Color palettes (12 selectable schemes; match the browser apps) =====
+' The user picks a scheme in cell N2 (off the print area). Index 0 = Color
+' (pastel "Sorbet" — reads the live Planner grid colors); 1..9 are the colour
+' schemes; 10 = High contrast (colourblind-safe), 11 = B & W (grayscale, print).
 ' Length drives the fill (the primary cue); product/grade ride along in each
-' pack's label. The length LEGEND (row 10) is recolored to match the palette.
+' pack's label. The length LEGEND (row 10) is recolored to match the scheme.
+
+Private Function SchemeNames() As Variant
+    SchemeNames = Array("Color (pastel)", "Vivid", "Material", "Tableau", _
+        "Earth / lumberyard", "Jewel tones", "Rainbow (warm to cool)", _
+        "Viridis (colour-safe)", "Sunset (warm)", "Neon", "High contrast", "B & W (print)")
+End Function
 
 Public Function CurrentPalette() As Long
     On Error Resume Next
     Dim v As String
-    v = UCase(Trim(CStr(ThisWorkbook.Worksheets("Manifest").Range("N2").Value & "")))
-    If InStr(v, "B & W") > 0 Or InStr(v, "BLACK") > 0 Or v = "BW" Then
-        CurrentPalette = 2
-    ElseIf InStr(v, "CONTRAST") > 0 Or InStr(v, "HIGH") > 0 Then
-        CurrentPalette = 1
+    v = Trim(CStr(ThisWorkbook.Worksheets("Manifest").Range("N2").Value & ""))
+    Dim nm As Variant: nm = SchemeNames()
+    Dim i As Long
+    For i = 0 To UBound(nm)
+        If StrComp(v, CStr(nm(i)), vbTextCompare) = 0 Then CurrentPalette = i: Exit Function
+    Next i
+    ' back-compat with the old 3-item N2 list ("Color" / "High contrast" / "B & W")
+    Dim u As String: u = UCase(v)
+    If InStr(u, "B & W") > 0 Or InStr(u, "BLACK") > 0 Then
+        CurrentPalette = 11
+    ElseIf InStr(u, "CONTRAST") > 0 Then
+        CurrentPalette = 10
     Else
         CurrentPalette = 0
     End If
@@ -268,7 +280,7 @@ Private Sub PackColors(cl As Range, v As String, pal As Long, _
         On Error GoTo 0
     Else
         Dim L As Long: L = CLng(ParseLen(v))
-        fillCol = IIf(pal = 1, HCLen(L), BWLen(L))
+        fillCol = LenColor(pal, L)
         borderCol = RGB(0, 0, 0)
         textCol = BestText(fillCol)
     End If
@@ -288,32 +300,49 @@ Private Function Pal0Len(ByVal L As Long) As Long
     End Select
 End Function
 
-' High-contrast qualitative length fills (palette 1).
-Private Function HCLen(ByVal L As Long) As Long
+' Length index 0..6 for 8'..20' (or -1).
+Private Function LenIdx(ByVal L As Long) As Long
     Select Case L
-        Case 8:  HCLen = RGB(31, 119, 180)    ' blue
-        Case 10: HCLen = RGB(44, 160, 44)     ' green
-        Case 12: HCLen = RGB(255, 127, 14)    ' orange
-        Case 14: HCLen = RGB(148, 103, 189)   ' purple
-        Case 16: HCLen = RGB(214, 39, 40)     ' red
-        Case 18: HCLen = RGB(23, 190, 207)    ' cyan
-        Case 20: HCLen = RGB(140, 86, 75)     ' brown
-        Case Else: HCLen = RGB(90, 90, 90)
+        Case 8: LenIdx = 0
+        Case 10: LenIdx = 1
+        Case 12: LenIdx = 2
+        Case 14: LenIdx = 3
+        Case 16: LenIdx = 4
+        Case 18: LenIdx = 5
+        Case 20: LenIdx = 6
+        Case Else: LenIdx = -1
     End Select
 End Function
 
-' Grayscale length fills, light->dark, all readable with black text (palette 2).
-Private Function BWLen(ByVal L As Long) As Long
-    Select Case L
-        Case 8:  BWLen = RGB(255, 255, 255)
-        Case 10: BWLen = RGB(238, 238, 238)
-        Case 12: BWLen = RGB(221, 221, 221)
-        Case 14: BWLen = RGB(204, 204, 204)
-        Case 16: BWLen = RGB(187, 187, 187)
-        Case 18: BWLen = RGB(170, 170, 170)
-        Case 20: BWLen = RGB(153, 153, 153)
-        Case Else: BWLen = RGB(255, 255, 255)
+' "RRGGBB" hex -> the BGR Long that Excel .Color expects.
+Private Function HexBGR(ByVal h As String) As Long
+    HexBGR = RGB(CLng("&H" & Mid$(h, 1, 2)), CLng("&H" & Mid$(h, 3, 2)), CLng("&H" & Mid$(h, 5, 2)))
+End Function
+
+' The 7 length fills (8'..20') for schemes 1..11 — same hexes as the browser apps.
+Private Function PaletteHex(ByVal pal As Long) As Variant
+    Select Case pal
+        Case 1:  PaletteHex = Array("E53935", "FB8C00", "FDD835", "43A047", "00ACC1", "1E88E5", "8E24AA")
+        Case 2:  PaletteHex = Array("EF5350", "FFA726", "FFEE58", "66BB6A", "26C6DA", "42A5F5", "AB47BC")
+        Case 3:  PaletteHex = Array("4E79A7", "F28E2B", "E15759", "76B7B2", "59A14F", "EDC948", "B07AA1")
+        Case 4:  PaletteHex = Array("8C6239", "C9A66B", "7D8C4F", "B7410E", "2E5E4E", "D4A017", "5C3A21")
+        Case 5:  PaletteHex = Array("B71C1C", "E65100", "F9A825", "1B5E20", "00695C", "1A237E", "4A148C")
+        Case 6:  PaletteHex = Array("D32F2F", "F57C00", "FBC02D", "689F38", "0097A7", "1976D2", "7B1FA2")
+        Case 7:  PaletteHex = Array("440154", "443983", "31688E", "21918C", "35B779", "90D743", "FDE725")
+        Case 8:  PaletteHex = Array("5C1A33", "9D2B4A", "C44536", "E8590C", "F0A202", "F4C430", "F7E07A")
+        Case 9:  PaletteHex = Array("FF1744", "FF9100", "FFEA00", "00E676", "00E5FF", "2979FF", "D500F9")
+        Case 10: PaletteHex = Array("1F77B4", "2CA02C", "FF7F0E", "9467BD", "D62728", "17BECF", "8C564B")
+        Case Else: PaletteHex = Array("FFFFFF", "EEEEEE", "DDDDDD", "CCCCCC", "BBBBBB", "AAAAAA", "999999")
     End Select
+End Function
+
+' Length fill for the active scheme (pal 0 = live pastel via Pal0Len).
+Private Function LenColor(ByVal pal As Long, ByVal L As Long) As Long
+    If pal = 0 Then LenColor = Pal0Len(L): Exit Function
+    Dim idx As Long: idx = LenIdx(L)
+    If idx < 0 Then LenColor = RGB(240, 240, 240): Exit Function
+    Dim arr As Variant: arr = PaletteHex(pal)
+    LenColor = HexBGR(CStr(arr(idx)))
 End Function
 
 ' Black or white text, whichever reads better on the given fill.
@@ -335,11 +364,7 @@ Private Sub ApplyLegend(mf As Worksheet, pal As Long)
     Dim lv As Variant: lv = Array(8, 10, 12, 14, 16, 18, 20)
     Dim i As Long, col As Long
     For i = 0 To 6
-        Select Case pal
-            Case 0: col = Pal0Len(CLng(lv(i)))
-            Case 1: col = HCLen(CLng(lv(i)))
-            Case Else: col = BWLen(CLng(lv(i)))
-        End Select
+        col = LenColor(pal, CLng(lv(i)))
         With mf.Cells(10, 2 + i)
             .Interior.Color = col
             .Font.Color = BestText(col)
