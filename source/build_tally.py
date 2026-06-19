@@ -158,7 +158,9 @@ def build_layout(path):
 
     banner(rec, "A9:C9", "LENGTH PALETTE", fill=HDRLT, bold=True)
     put(rec, "A10", "Length", bold=True, align=CENTER)
-    banner(rec, "B10:C10", "Check 7-row side  /  5-row side   (5-row only matters for a mixed 7+5 car)",
+    # Reactive caption (the VBA rewrites B10 to match the car layout: one column for a
+    # symmetric car, "7-row / 5-row side" for a mixed 7+5 car).
+    banner(rec, "B10:C10", "Check each length to load in this car",
            bold=True, size=9)
     for i, n in enumerate(LEN_NUMS):
         row = 11 + i
@@ -234,7 +236,9 @@ def build_layout(path):
         "       - Palette - use only selected: tallies are built only from the lengths you turn on.",
         "       - Each selected must appear: every length you turn on must show up somewhere in the car.",
         "       - Each must appear + fillers: every selected length appears, other lengths may finish a row.",
-        "3.  Length palette: check each length you want. For a 7+5 car the 7-row and 5-row sides have separate checkboxes and are tallied independently (504 ft + 360 ft).",
+        "3.  Length palette (reactive): a symmetric 5+5 / 7+7 car shows ONE column - just check each length to use.",
+        "       Switch Car layout to 7+5 and a second column appears: LEFT box = 7-row side, RIGHT box = 5-row side,",
+        "       and the two sides are tallied independently (504 ft + 360 ft).",
         "4.  Click Recommend Tallies.",
         "",
         "RECOMMENDED FULL-CAR TALLIES (Recommender tab)",
@@ -242,24 +246,28 @@ def build_layout(path):
         '(always rows x 72), and an OK check. "All 10 rows: 2x16, 2x20" means load every row the same way:',
         "two 16s + two 20s = 20 pcs 16 ft + 20 pcs 20 ft = 720 ft.",
         "",
-        "ROW PATTERNS tab",
-        "Every way to fill a single 72-ft row from your lengths. The two header rows stay frozen at the top as",
-        "you scroll. Click a length column header (8 ft ... 20 ft) to sort the patterns by that length, most",
-        "first. To hand-build a mixed car, type how many rows of each pattern in the Rows to use column; the",
-        "YOUR HAND-BUILT TALLY line (directly below the last pattern) totals the pieces per length and the",
-        "row count. Make the row count match your car size (10 or 14).",
+        "ROW PATTERNS tab  (hand-build grid)",
+        "Every way to fill a single 72-ft row from your lengths. To hand-build a car, type how many rows of",
+        "each pattern in the Rows to use column; the YOUR HAND-BUILT TALLY line (directly below the last",
+        "pattern) totals the pieces per length and shows the running rows / target (an OK appears when they",
+        "match). Click a length column header (8 ft ... 20 ft) to sort a grid by that length, most first.",
+        "This tab is reactive too: a symmetric car shows ONE grid (aim for 10 or 14 rows); a mixed 7+5 car",
+        "shows TWO grids - the 7-row side (aim for 7 rows) and the 5-row side (aim for 5 rows) - built",
+        "independently, exactly like the two recommendation tables.",
         "",
         "NOTES",
         "-  Only length controls the 72-ft fit; product and grade are not part of this tool.",
         "-  Click Enable Content when you open the file so the buttons, checkboxes and sorting work.",
         "-  Up to 15 recommendations and up to 101 row patterns are listed.",
     ]
+    section_heads = {"WHAT IT DOES", "THE TABS", "HOW TO USE (Recommender tab)",
+                     "RECOMMENDED FULL-CAR TALLIES (Recommender tab)",
+                     "ROW PATTERNS tab  (hand-build grid)", "NOTES"}
     for i, text in enumerate(lines):
         if text:
-            put(how, "A%d" % (i + 1), text)
+            put(how, "A%d" % (i + 1), text,
+                bold=text in section_heads, color=NAVY if text in section_heads else INK)
     put(how, "A1", lines[0], bold=True, size=14, color=NAVY)
-    for r in (3, 8, 13, 22, 27, 34):
-        put(how, "A%d" % r, lines[r - 1], bold=True, color=NAVY)
 
     # ---- consolidate numeric formatting across the data blocks ----
     # (count + total columns centered as integers; runtime VBA writes preserve it)
@@ -269,8 +277,10 @@ def build_layout(path):
     fmt_block(rec, "C37:K47", "0")
     fmt_block(rec, "L23:L33")            # OK? is text, just center it
     fmt_block(rec, "L37:L47")
-    fmt_block(pat, "A3:A103", "0")
-    fmt_block(pat, "C3:J103", "0")       # lengths (C-I) + Rows to use (J)
+    # cover both stacked hand-build grids (the VBA can place a second grid well
+    # below row 103 on a mixed car); keep counts centered as integers.
+    fmt_block(pat, "A3:A240", "0")
+    fmt_block(pat, "C3:J240", "0")       # lengths (C-I) + Rows to use (J)
 
     wb.save(path)
 
@@ -278,23 +288,35 @@ def build_layout(path):
 # ----------------------------------------------------------------------------
 # Stage 2: Excel COM injects VBA + buttons, seeds, saves as .xlsm
 # ----------------------------------------------------------------------------
+# Click any hand-build grid's length header (8'-20', cols C-I) to sort it. The
+# grids float at runtime-dependent rows, so detect a header by its col-B label
+# ("Row = 72 ft") rather than a fixed row.
 SHEET_EVENT = "\r\n".join([
     "Private Sub Worksheet_SelectionChange(ByVal Target As Range)",
     "    If Target.Cells.Count <> 1 Then Exit Sub",
-    "    If Target.Row = 2 And Target.Column >= 3 And Target.Column <= 9 Then",
-    "        SortPatternsBy Target.Column",
+    "    If Target.Column < 3 Or Target.Column > 9 Then Exit Sub",
+    '    If CStr(Me.Cells(Target.Row, 2).Value) = "Row = 72 ft" Then',
+    "        SortPatternsBy Target.Column, Target.Row",
     "    End If",
     "End Sub",
 ])
 
-# Click-to-sort on the Recommender tab: table A header is row 22, table B (the
-# 5-row side of a mixed car) header is row 36; length columns are C-I (3..9).
+# Recommender tab: (1) click-to-sort the recommendation tables - table A header is
+# row 22, table B (5-row side of a mixed car) header is row 36; length cols C-I.
+# (2) Worksheet_Change makes the palette / tables / hand-build grids REACTIVE: any
+# edit to the Car layout (B5) or Match mode (B6) re-runs the recommender.
 REC_EVENT = "\r\n".join([
     "Private Sub Worksheet_SelectionChange(ByVal Target As Range)",
     "    If Target.Cells.Count <> 1 Then Exit Sub",
     "    If Target.Column < 3 Or Target.Column > 9 Then Exit Sub",
     "    If Target.Row = 22 Then SortRecsByRange Target.Column, 23, 33",
     "    If Target.Row = 36 Then SortRecsByRange Target.Column, 37, 47",
+    "End Sub",
+    "Private Sub Worksheet_Change(ByVal Target As Range)",
+    "    If Intersect(Target, Me.Range(\"B5:B6\")) Is Nothing Then Exit Sub",
+    "    Application.EnableEvents = False",
+    "    RecommendTallies",
+    "    Application.EnableEvents = True",
     "End Sub",
 ])
 
@@ -379,6 +401,9 @@ def inject_macros(src_xlsx, out_xlsm):
         # (also the symmetric palette) and "5-row" linked to col C, both within the
         # wide B column so they sit together. Linked cells use the ';;;' format from
         # the layout stage so only the boxes show next to the colored length chip.
+        # Named cb7_<len> / cb5_<len> so the VBA can show/hide the 5-row column when
+        # the car layout is symmetric (reactive palette).
+        excel.EnableEvents = False  # keep the new Worksheet_Change quiet during build
         xl_on, xl_off = 1, -4146
         d7 = {16, 20}   # default 7-row / symmetric checks
         d5 = {16, 20}   # default 5-row checks
@@ -387,11 +412,13 @@ def inject_macros(src_xlsx, out_xlsm):
             cellB = rec.Range("B%d" % row)
             cb7 = rec.CheckBoxes().Add(cellB.Left + 4, cellB.Top + 1, 56, 15)
             cb7.Caption = "7-row"
+            cb7.Name = "cb7_%d" % n
             cb7.LinkedCell = "$B$%d" % row
             cb7.Value = xl_on if n in d7 else xl_off
             rec.Range("B%d" % row).Value = (n in d7)
             cb5 = rec.CheckBoxes().Add(cellB.Left + 92, cellB.Top + 1, 56, 15)
             cb5.Caption = "5-row"
+            cb5.Name = "cb5_%d" % n
             cb5.LinkedCell = "$C$%d" % row
             cb5.Value = xl_on if n in d5 else xl_off
             rec.Range("C%d" % row).Value = (n in d5)
