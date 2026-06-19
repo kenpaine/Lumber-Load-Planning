@@ -116,8 +116,12 @@ def main():
         btn.OnAction = "RedrawManifestButton"
         print("  added Redraw button")
 
-        # 3c. Palette selector (off-print, columns M/N) — Color / High contrast / B&W.
-        #     Changing it fires Worksheet_Change, which redraws the diagram + pick list.
+        # 3c. Palette selector (off-print, columns M/N) — the 12 length-colour
+        #     schemes shared with the browser apps. Changing it fires
+        #     Worksheet_Change, which redraws the diagram + pick list.
+        SCHEME_NAMES = ("Color (pastel),Vivid,Material,Tableau,Earth / lumberyard,"
+                        "Jewel tones,Rainbow (warm to cool),Viridis (colour-safe),"
+                        "Sunset (warm),Neon,High contrast,B & W (print)")
         lbl = mf.Range("M2")
         lbl.Value = "Palette:"
         lbl.Font.Bold = True
@@ -128,15 +132,16 @@ def main():
         except Exception:
             pass
         # 3 = xlValidateList, 1 = xlValidAlertStop, 1 = xlBetween
-        pal_cell.Validation.Add(3, 1, 1, "Color,High contrast,B & W (print)")
+        pal_cell.Validation.Add(3, 1, 1, SCHEME_NAMES)
         pal_cell.Validation.IgnoreBlank = True
         pal_cell.Validation.InCellDropdown = True
-        if not str(pal_cell.Value or "").strip():
-            pal_cell.Value = "Color"
+        # migrate the old 3-item default ("Color") to the new name
+        if str(pal_cell.Value or "").strip() in ("", "Color"):
+            pal_cell.Value = "Color (pastel)"
         pal_cell.Interior.Color = 0xE8F0DF       # light tint so it reads as an input
         pal_cell.Font.Bold = True
         mf.Columns("M").ColumnWidth = 9
-        mf.Columns("N").ColumnWidth = 17
+        mf.Columns("N").ColumnWidth = 20
         print("  added palette selector (N2):", pal_cell.Value)
 
         # 4. The Pick List is now drawn dynamically as shapes by VBA, directly under
