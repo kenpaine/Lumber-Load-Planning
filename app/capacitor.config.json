@@ -5,7 +5,6 @@
   "backgroundColor": "#1a1f16",
   "ios": {
     "contentInset": "never",
-    "backgroundColor": "#1a1f16",
-    "limitsNavigationsToAppBoundDomains": true
+    "backgroundColor": "#1a1f16"
   }
 }

@@ -117,6 +117,30 @@
   .pl-table{border-collapse:collapse;font-size:10px}
   .pl-table th{background:#2b3126;color:#fff;font-weight:700;padding:3px 7px;border:1px solid #cfcfcf;font-size:9px}
   .pl-table td{padding:2px 7px;border:1px solid #d8d8d8;text-align:center;color:#1a1a1a;white-space:nowrap}
+  /* ---- Responsive: stack to a single column on phones (≤768px) ---- */
+  @media (max-width:768px){
+    header{position:sticky;top:0;z-index:30;padding:0 12px;gap:8px}
+    header h1{font-size:14px}
+    .sub{display:none}
+    .theme-toggle{margin-left:auto}
+    .app{grid-template-columns:1fr;height:auto}             /* sidebar on top, canvas/tables below */
+    .sidebar{border-right:none;border-bottom:1px solid var(--border);overflow:visible;height:auto;min-width:0}
+    .main{overflow:visible;min-width:0}
+    .tabbar{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .tab{flex:0 0 auto;white-space:nowrap;padding:10px 13px}
+    .tc{flex:none;overflow:visible}
+    .toolbar{flex-wrap:wrap;gap:7px}
+    .info{margin-left:0}
+    .cw{overflow:auto;-webkit-overflow-scrolling:touch}     /* canvas keeps native size; scroll to pan */
+    .twocol{gap:16px}
+    .manifest-head{width:auto}                              /* don't force max-content width on phones */
+    table.t{max-width:100%}
+    table.t th{white-space:normal}
+    /* ≥16px form controls stop iOS Safari from zoom-jumping the WebView on focus */
+    select,input[type=number]{font-size:16px;padding:9px 10px}
+    .btn{padding:10px 12px;font-size:13px}
+    label{font-size:13px}
+  }
   @media print{
     @page{size:letter landscape;margin:0.3in}
     header,.sidebar,.tabbar,.toolbar,.legendbar{display:none!important}
