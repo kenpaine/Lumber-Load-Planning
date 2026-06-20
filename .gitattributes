@@ -1,2 +1,13 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Treat binary assets as binary: no EOL normalization, no textual diff.
+# (Belt-and-suspenders over text=auto's auto-detection — keeps PNG signatures
+#  like \x89PNG\r\n from ever being CRLF->LF mangled on checkout.)
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.xlsx binary
+*.xlsm binary
