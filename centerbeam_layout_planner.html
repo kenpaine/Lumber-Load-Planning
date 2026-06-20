@@ -162,8 +162,8 @@
     </div>
     <div id="singleBox" style="display:none">
       <div class="addgrid">
-        <div><label>Product (all rows)</label><select id="singleProduct" onchange="applySingle()"></select></div>
-        <div><label>Grade (all rows)</label><select id="singleGrade" onchange="applySingle()"></select></div>
+        <div><label>Product (all rows)</label><select id="singleProduct" onchange="Haptic.selection();applySingle()"></select></div>
+        <div><label>Grade (all rows)</label><select id="singleGrade" onchange="Haptic.selection();applySingle()"></select></div>
       </div>
     </div>
 
@@ -174,7 +174,7 @@
       <div id="addGradeField"><label>Grade</label><select id="addGrade"></select></div>
       <div id="addSideField" class="full" style="display:none"><label>Side — which row height</label>
         <div class="sideseg sideseg-lg" id="addSideToggle">
-          <b class="seg on7" onclick="setAddSide(7)">7‑row side</b><b class="seg" onclick="setAddSide(5)">5‑row side</b>
+          <b class="seg on7" onclick="Haptic.selection();setAddSide(7)">7‑row side</b><b class="seg" onclick="Haptic.selection();setAddSide(5)">5‑row side</b>
         </div>
       </div>
       <div id="addQtyField"><label>Packs</label><input type="number" id="addQty" value="1" min="1" max="999"></div>
@@ -198,7 +198,7 @@
     <div id="sideFit" class="screen-only" style="font-size:11px;line-height:1.5;margin:2px 0 4px"></div>
     <div class="ilist" id="itemList"></div>
     <div class="brow">
-      <button class="btn primary" id="solveBtn" onclick="solveLayout()">⚡ Solve Layout</button>
+      <button class="btn primary" id="solveBtn" onclick="solveTap()">⚡ Solve Layout</button>
       <button class="btn danger" onclick="clearAll()">✕ Clear</button>
     </div>
 
@@ -229,7 +229,7 @@
           <button class="btn" onclick="zoom(-1)">−</button>
           <span class="zlbl" id="zoomLabel">100%</span>
           <button class="btn" onclick="zoom(1)">+</button>
-          <button class="btn" onclick="zoomFit()">Fit</button>
+          <button class="btn" onclick="Haptic.selection();zoomFit()">Fit</button>
         </div>
         <span class="info" id="cursorInfo">Hover the layout to inspect</span>
       </div>
@@ -245,6 +245,35 @@
 </div>
 
 <script>
+// ---------- Native haptics (Capacitor Haptics plugin on iOS; safe no-op elsewhere) ----------
+// This app runs inside the native shell's iframe. Capacitor injects its JS bridge only into the
+// top frame, so we resolve the Haptics plugin from this window or any same-origin ancestor. On the
+// plain web it falls back to navigator.vibrate where available, and otherwise does nothing — so the
+// standalone browser version behaves exactly as before.
+const Haptic=(function(){
+  function plugin(){
+    let w=window;
+    for(let i=0;i<5&&w;i++){
+      try{ const C=w.Capacitor; if(C&&C.Plugins&&C.Plugins.Haptics) return C.Plugins.Haptics; }catch(e){}
+      if(w===w.parent) break; w=w.parent;
+    }
+    return null;
+  }
+  function vibe(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
+  function impact(style,ms){ const H=plugin(); if(H&&H.impact){ try{ H.impact({style}); return; }catch(e){} } vibe(ms); }
+  function notify(type,ms){ const H=plugin(); if(H&&H.notification){ try{ H.notification({type}); return; }catch(e){} } vibe(ms); }
+  return {
+    available(){ return !!plugin(); },
+    selection(){ const H=plugin(); if(H&&H.selectionChanged){ try{ H.selectionChanged(); return; }catch(e){} } vibe(6); },
+    light(){ impact("LIGHT",10); },
+    medium(){ impact("MEDIUM",18); },
+    heavy(){ impact("HEAVY",28); },
+    success(){ notify("SUCCESS",[12,40,12]); },
+    warning(){ notify("WARNING",[20,60,20]); },
+    error(){ notify("ERROR",[30,50,30,50,30]); }
+  };
+})();
+
 const TARGET=72, MAX_SLOTS=9;
 const PRODUCTS=["2x4","2x6","2x8","2x10","4x4","4x6","6x6"];
 const LENGTHS=[8,10,12,14,16,18,20];
@@ -287,7 +316,7 @@ function packBorder(c){ return state.palette===0?PCOLORS[c.product]:"#000000"; }
 function packText(c){ return state.palette===0?GFONT[c.grade]:bestText(lenFill(c.length)); }
 function populatePalettes(){ const s=document.getElementById("paletteSelP"); if(!s) return;
   s.innerHTML=SCHEMES.map((p,i)=>`<option value="${i}">${p.name}</option>`).join(""); s.value=String(state.palette); }
-function setPalette(v){ state.palette=+v; const s=document.getElementById("paletteSelP"); if(s) s.value=String(state.palette); renderAll(); }
+function setPalette(v){ Haptic.selection(); state.palette=+v; const s=document.getElementById("paletteSelP"); if(s) s.value=String(state.palette); renderAll(); }
 
 let state={numRows:10,carLayout:"5+5",split:{aRows:5,bRows:5,aTag:5,bTag:5,mixed:false},addSide:7,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2",palette:0};
 
@@ -402,7 +431,7 @@ function init(){
   buildLegends();
   solveLayout();
 }
-function reconfigure(){ state.carLayout=document.getElementById("carLayout").value; normalizeSides(); syncSideUI(); solveLayout(); }
+function reconfigure(){ Haptic.selection(); state.carLayout=document.getElementById("carLayout").value; normalizeSides(); syncSideUI(); solveLayout(); }
 // Keep every line's side tag valid for the current layout (symmetric -> force the
 // single side; mixed -> keep 5/7, default anything else to the layout's default).
 function normalizeSides(){ const S=layoutSides(state.carLayout);
@@ -416,13 +445,14 @@ function addItem(){
   const grade=state.singleMode?state.singleGrade:document.getElementById("addGrade").value;
   const qty=parseInt(document.getElementById("addQty").value)||0;
   if(qty<1) return;
+  Haptic.light();
   const S=layoutSides(state.carLayout);
   const side=S.mixed?state.addSide:S.aTag;
   const ex=state.items.find(it=>it.product===product&&it.length===length&&it.grade===grade&&it.side===side);
   if(ex) ex.qty+=qty; else state.items.push({product,length,grade,qty,side});
   solveLayout();
 }
-function setItemSide(i,val){ state.items[i].side=+val; solveLayout(); }
+function setItemSide(i,val){ Haptic.selection(); state.items[i].side=+val; solveLayout(); }
 function setAddSide(v){ state.addSide=v; const t=document.getElementById("addSideToggle"); if(t){ const g=t.querySelectorAll(".seg"); g[0].className="seg"+(v===7?" on7":""); g[1].className="seg"+(v===5?" on5":""); } }
 
 // ---------- single product/grade mode ----------
@@ -436,6 +466,7 @@ function syncSingleUI(){
   if(on) hint.innerHTML=`All packs: <b style="color:var(--green2)">${state.singleProduct}</b> · Grade <b style="color:var(--green2)">${state.singleGrade}</b>`;
 }
 function toggleSingle(){
+  Haptic.selection();
   state.singleMode=document.getElementById("singleMode").value==="yes";
   if(state.singleMode) applySingle(); else { syncSingleUI(); renderAll(); }
 }
@@ -455,8 +486,8 @@ function applySingle(){
   syncSingleUI();
   solveLayout();
 }
-function removeItem(i){ state.items.splice(i,1); solveLayout(); }
-function clearAll(){ state.items=[]; state.rows=Array.from({length:state.numRows},()=>[]); state.unplaced=[]; renderAll(); }
+function removeItem(i){ Haptic.light(); state.items.splice(i,1); solveLayout(); }
+function clearAll(){ Haptic.light(); state.items=[]; state.rows=Array.from({length:state.numRows},()=>[]); state.unplaced=[]; renderAll(); }
 
 // ---------- solve scheduling: debounced + off-main-thread Web Worker ----------
 // The backtracking solver can run up to its internal timeout (a few seconds) on
@@ -490,7 +521,17 @@ function applySolution(res){ res=res||{};
   const S=layoutSides(state.carLayout); state.split=S; state.numRows=S.aRows+S.bRows;
   state.rows=res.rows||Array.from({length:state.numRows},()=>[]);
   state.unplaced=res.unplaced||[];
-  renderAll(); if(state.tab==="visual") zoomFit(); }
+  renderAll(); if(state.tab==="visual") zoomFit();
+  if(state._userSolve){ state._userSolve=false;                 // outcome haptic only for an explicit Solve tap
+    const placed=state.rows.reduce((s,r)=>s+r.length,0);
+    const full=state.rows.filter(r=>r.reduce((a,c)=>a+c.length,0)===TARGET).length;
+    if(state.unplaced.length) Haptic.warning();                 // some packs don't fit
+    else if(full===state.numRows && placed>0) Haptic.success(); // every row exactly 72 ft — perfect load
+    else Haptic.light();
+  }
+}
+// Explicit "Solve Layout" tap: flag it so applySolution fires a success/warning haptic on the result.
+function solveTap(){ state._userSolve=true; solveLayout(); }
 function runSolve(){
   if(!_noWorker && typeof Worker!=="undefined"){
     try{
@@ -636,7 +677,7 @@ function render(){
   [...uG].forEach(g=>lh+=`<span class="li"><span style="color:${GFONT[g]};background:#ebede6;padding:1px 5px;border-radius:2px;font-weight:700">${g}</span></span>`);
   document.getElementById("legendBar").innerHTML=lh||'<span class="muted" style="font-size:10px">No load yet</span>';
 }
-function zoom(d){ state.zoom=Math.max(.2,Math.min(4,state.zoom+d*0.15)); document.getElementById("zoomLabel").textContent=Math.round(state.zoom*100)+"%"; render(); }
+function zoom(d){ Haptic.selection(); state.zoom=Math.max(.2,Math.min(4,state.zoom+d*0.15)); document.getElementById("zoomLabel").textContent=Math.round(state.zoom*100)+"%"; render(); }
 function zoomFit(){ const w=document.querySelector(".cw").clientWidth-32; state.zoom=Math.max(.2,w/(TARGET*PXFT+PADX*2)); document.getElementById("zoomLabel").textContent=Math.round(state.zoom*100)+"%"; render(); }
 document.getElementById("cv").addEventListener("mousemove",e=>{
   const rect=e.target.getBoundingClientRect(); const z=state.zoom,pxft=PXFT*z,padX=PADX*z,padY=PADY*z,rowH=(ROWH+ROWGAP)*z;
@@ -740,7 +781,7 @@ function renderManifest(){
     <label class="mf-pal">Palette
       <select onchange="setPalette(this.value)">${SCHEMES.map((p,i)=>`<option value="${i}" ${state.palette===i?"selected":""}>${p.name}</option>`).join("")}</select>
     </label>
-    <button class="btn printbtn" onclick="window.print()">🖨 Print (1 page)</button></div>`;
+    <button class="btn printbtn" onclick="Haptic.medium();window.print()">🖨 Print (1 page)</button></div>`;
   h+=`<div class="manifest-head">
     <div><div class="k">Car Type</div>Centerbeam 72 ft</div>
     <div><div class="k">Rows</div>${full}/${state.numRows} full</div>
@@ -785,6 +826,7 @@ function renderPatterns(){
 
 // ---------- tabs / boot ----------
 function switchTab(t){
+  Haptic.selection();
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
   document.querySelectorAll(".tc").forEach(x=>x.classList.remove("active"));
   document.querySelectorAll(".tab")[["visual","rows","manifest","patterns"].indexOf(t)].classList.add("active");
@@ -803,6 +845,7 @@ function initTheme(){
   applyTheme(s);
 }
 function toggleTheme(){
+  Haptic.selection();
   applyTheme(state.theme==="light"?"dark":"light");
   try{ localStorage.setItem("clp-theme",state.theme); }catch(e){}
   render();
@@ -812,8 +855,10 @@ function toggleTheme(){
 function rowHighlight(ev){
   const tr=ev.target.closest("table.t tbody tr");
   if(!tr) return;
+  if(tr.classList.contains("activerow")) return;       // already highlighted — no extra buzz
   document.querySelectorAll("table.t tbody tr.activerow").forEach(r=>r.classList.remove("activerow"));
   tr.classList.add("activerow");
+  Haptic.selection();
 }
 window.addEventListener("load",()=>{ initTheme(); init(); zoomFit(); populatePalettes(); document.addEventListener("click",rowHighlight); });
 window.addEventListener("resize",()=>{ if(state.tab==="visual") zoomFit(); });

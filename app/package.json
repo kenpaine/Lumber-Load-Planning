@@ -1,0 +1,24 @@
+{
+  "name": "lumber-load-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iOS app wrapper combining the Centerbeam Tally Recommender and Layout Planner web apps.",
+  "type": "module",
+  "scripts": {
+    "sync-www": "node scripts/sync-www.mjs",
+    "build": "npm run sync-www",
+    "cap:add-ios": "npm run sync-www && cap add ios",
+    "cap:sync": "npm run sync-www && cap sync ios",
+    "cap:open": "cap open ios"
+  },
+  "author": "Ken Paine",
+  "license": "MIT",
+  "dependencies": {
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.4.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.4.1"
+  }
+}
