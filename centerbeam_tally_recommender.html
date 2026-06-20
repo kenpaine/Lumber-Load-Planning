@@ -166,11 +166,10 @@
 <script>
 // ===== Centerbeam 72-ft Car — Tally Recommender (browser port of the .xlsm) =====
 
-// ---------- Native haptics (Capacitor Haptics plugin on iOS; safe no-op elsewhere) ----------
-// This app runs inside the native shell's iframe. Capacitor injects its JS bridge only into the
-// top frame, so we resolve the Haptics plugin from this window or any same-origin ancestor.
-// On the plain web (no native runtime) it falls back to navigator.vibrate where available, and
-// otherwise does nothing — so the standalone browser version behaves exactly as before.
+// ---------- Native haptics (Capacitor Haptics plugin; app-only — silent on the plain web) ----------
+// This app runs inside the native shell's iframe. Capacitor injects its JS bridge only into the top
+// frame, so we resolve the Haptics plugin from this window or any same-origin ancestor. When no native
+// runtime is present (a normal web browser) every call simply does nothing — no web vibration fallback.
 const Haptic=(function(){
   function plugin(){
     let w=window;
@@ -180,18 +179,17 @@ const Haptic=(function(){
     }
     return null;
   }
-  function vibe(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
-  function impact(style,ms){ const H=plugin(); if(H&&H.impact){ try{ H.impact({style}); return; }catch(e){} } vibe(ms); }
-  function notify(type,ms){ const H=plugin(); if(H&&H.notification){ try{ H.notification({type}); return; }catch(e){} } vibe(ms); }
+  function impact(style){ const H=plugin(); if(H&&H.impact){ try{ H.impact({style}); }catch(e){} } }
+  function notify(type){ const H=plugin(); if(H&&H.notification){ try{ H.notification({type}); }catch(e){} } }
   return {
     available(){ return !!plugin(); },
-    selection(){ const H=plugin(); if(H&&H.selectionChanged){ try{ H.selectionChanged(); return; }catch(e){} } vibe(6); },
-    light(){ impact("LIGHT",10); },
-    medium(){ impact("MEDIUM",18); },
-    heavy(){ impact("HEAVY",28); },
-    success(){ notify("SUCCESS",[12,40,12]); },
-    warning(){ notify("WARNING",[20,60,20]); },
-    error(){ notify("ERROR",[30,50,30,50,30]); }
+    selection(){ const H=plugin(); if(H&&H.selectionChanged){ try{ H.selectionChanged(); }catch(e){} } },
+    light(){ impact("LIGHT"); },
+    medium(){ impact("MEDIUM"); },
+    heavy(){ impact("HEAVY"); },
+    success(){ notify("SUCCESS"); },
+    warning(){ notify("WARNING"); },
+    error(){ notify("ERROR"); }
   };
 })();
 
