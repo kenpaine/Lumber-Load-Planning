@@ -15,10 +15,11 @@ import pythoncom
 from win32com.client import DispatchEx
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PLANNER = os.path.join(ROOT, "Centerbeam_Lumber_Layout_Planner.xlsm")
-TALLY = os.path.join(ROOT, "Centerbeam_Tally_Recommender.xlsm")
+HERE = os.path.dirname(os.path.abspath(__file__))
+PLANNER = os.path.join(HERE, "Centerbeam_Lumber_Layout_Planner.xlsm")
+TALLY = os.path.join(HERE, "Centerbeam_Tally_Recommender.xlsm")
 OUT = os.path.join(ROOT, "Lumber_Loader.xlsm")
-BAS = os.path.join(ROOT, "source", "tally_recommender.bas")
+BAS = os.path.join(HERE, "tally_recommender.bas")
 XL_MACRO = 52  # xlOpenXMLWorkbookMacroEnabled
 
 # Button styling — match the workbook's other macro buttons (navy rounded-rect shapes).

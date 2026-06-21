@@ -174,7 +174,7 @@ Private Function RecommendInto(ws As Worksheet, L As Variant, sel() As Boolean, 
         If CarCovers(cnt, cnt, sel, mode) Then
             Dim comb As Variant: ReDim comb(0 To 6)
             For i = 0 To 6: comb(i) = cnt(i) * rows: Next i
-            WriteRecCounts ws, r, top, "All " & rows & " rows:  " & RowLabel(L, cnt), L, comb, rows
+            WriteRecCounts ws, r, top, TallyLabel(comb), L, comb, rows
             r = r + 1
         End If
     Next p
@@ -191,7 +191,7 @@ Private Function RecommendInto(ws As Worksheet, L As Variant, sel() As Boolean, 
                     nb = rows - na
                     Dim comb2 As Variant: ReDim comb2(0 To 6)
                     For i = 0 To 6: comb2(i) = ca(i) * na + cb(i) * nb: Next i
-                    WriteRecCounts ws, r, top, na & " rows (" & RowLabel(L, ca) & ")  +  " & nb & " rows (" & RowLabel(L, cb) & ")", L, comb2, rows
+                    WriteRecCounts ws, r, top, TallyLabel(comb2), L, comb2, rows
                     r = r + 1
                 End If
             Next b
@@ -234,6 +234,17 @@ Private Function RowLabel(L As Variant, cnt As Variant) As String
         End If
     Next i
     RowLabel = s
+End Function
+
+Private Function TallyLabel(comb As Variant) As String
+    Dim s As String, i As Integer
+    For i = 0 To 6
+        If comb(i) > 0 Then
+            If Len(s) > 0 Then s = s & "/"
+            s = s & comb(i)
+        End If
+    Next i
+    TallyLabel = s
 End Function
 
 Private Function ColL(ByVal c As Integer) As String

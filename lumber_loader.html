@@ -917,6 +917,7 @@ function tallyPatterns(allowed){
   return out.map(arr=>{ const c={}; LENGTHS.forEach(L=>c[L]=0); arr.forEach(x=>c[x]++); return c; });
 }
 function rowLabelC(c){ const p=[]; LENGTHS.forEach(L=>{ if(c[L]>0) p.push(c[L]+"×"+L+"'"); }); return p.join(", "); }
+function tallyLabel(counts){ return LENGTHS.filter(L=>counts[L]>0).map(L=>counts[L]).join('/'); }
 function pcsOf(c){ let s=0; LENGTHS.forEach(L=>s+=c[L]); return s; }
 function ftOf(c){ let s=0; LENGTHS.forEach(L=>s+=c[L]*L); return s; }
 function carCovers(a,b,sel,mode){ if(mode===1) return true; for(const L of sel){ if((a[L]||0)===0 && (b[L]||0)===0) return false; } return true; }
@@ -929,13 +930,13 @@ function recommendForRows(selSet,rows,mode){
   if(patterns.length===0) return {recs:[],patterns:[]};
   const selSet2=new Set(sel), recs=[];
   for(const p of patterns){ if(recs.length>=MAX_RECS) break;
-    if(carCovers(p,p,selSet2,mode)){ const counts={}; LENGTHS.forEach(L=>counts[L]=p[L]*rows); recs.push(makeRec("All "+rows+" rows: "+rowLabelC(p),counts,rows)); } }
+    if(carCovers(p,p,selSet2,mode)){ const counts={}; LENGTHS.forEach(L=>counts[L]=p[L]*rows); recs.push(makeRec(tallyLabel(counts),counts,rows)); } }
   if(mode>=2){ outer:
     for(let i=0;i<patterns.length;i++){ for(let j=i+1;j<patterns.length;j++){ if(recs.length>=MAX_RECS) break outer;
       const a=patterns[i],b=patterns[j];
       if(carCovers(a,b,selSet2,mode)){ let na=Math.floor(rows/2); if(na<1)na=1; const nb=rows-na;
         const counts={}; LENGTHS.forEach(L=>counts[L]=a[L]*na+b[L]*nb);
-        recs.push(makeRec(na+" rows ("+rowLabelC(a)+") + "+nb+" rows ("+rowLabelC(b)+")",counts,rows)); } } } }
+        recs.push(makeRec(tallyLabel(counts),counts,rows)); } } } }
   return {recs,patterns};
 }
 function setRecStatus(kind,msg){ const s=document.getElementById("recStatus"); state._recStatus=kind; if(!s) return; s.className="alert "+(kind==="ok"?"ok":"warn"); s.textContent=msg; }
