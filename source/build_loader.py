@@ -21,6 +21,16 @@ OUT = os.path.join(ROOT, "Lumber_Loader.xlsm")
 BAS = os.path.join(ROOT, "source", "tally_recommender.bas")
 XL_MACRO = 52  # xlOpenXMLWorkbookMacroEnabled
 
+# Button styling — match the workbook's other macro buttons (navy rounded-rect shapes).
+NAVY, WHITE = "1F4E79", "FFFFFF"
+MSO_ROUNDED_RECT, XL_CENTER = 5, -4108
+
+
+def bgr(hex_):
+    """RRGGBB hex -> the BGR integer Excel COM expects for .RGB / .Color."""
+    r, g, b = int(hex_[0:2], 16), int(hex_[2:4], 16), int(hex_[4:6], 16)
+    return r + (g << 8) + (b << 16)
+
 TRANSFER_VBA = r'''Option Explicit
 
 ' ===== Tally -> Loader transfer (the Excel twin of the web "Load into car") =====
@@ -293,6 +303,105 @@ Private Sub RecolorLoaderGrid(ld As Worksheet, ByVal pal As Long)
     Next i
 End Sub
 
+' Black or white text, whichever reads better on the given fill (luminance).
+Private Function UBestText(ByVal c As Long) As Long
+    Dim r As Long, g As Long, b As Long
+    r = c And &HFF&: g = (c \ &H100) And &HFF&: b = (c \ &H10000) And &HFF&
+    If (0.299 * r + 0.587 * g + 0.114 * b) > 150 Then UBestText = RGB(0, 0, 0) Else UBestText = RGB(255, 255, 255)
+End Function
+
+' Column number -> letter (A, B, ... AA ...).
+Private Function UColL(ByVal n As Long) As String
+    Dim s As String, m As Long
+    Do While n > 0
+        m = (n - 1) Mod 26
+        s = Chr(65 + m) & s
+        n = (n - 1) \ 26
+    Loop
+    UColL = s
+End Function
+
+' Recolour the Pattern Library's length cells (header, count cells, legend) to the
+' scheme so it follows the palette like the Tally chips and the Loader grid.
+Private Sub RecolorPatternLibrary(ByVal pal As Long)
+    Dim pl As Worksheet
+    On Error Resume Next
+    Set pl = ThisWorkbook.Worksheets("Pattern Library")
+    On Error GoTo 0
+    If pl Is Nothing Then Exit Sub
+    Dim j As Long, col As Long, fillc As Long, r As Long
+    For j = 0 To 6                                    ' header row 4, length cols C..I
+        col = 3 + j: fillc = UScheme(pal, j)
+        pl.Cells(4, col).Interior.Color = fillc
+        pl.Cells(4, col).Font.Color = UBestText(fillc)
+    Next j
+    r = 5                                             ' data rows: colour the non-empty count cells
+    Do While r < 500
+        If Not IsNumeric(pl.Cells(r, 1).Value) Then Exit Do
+        If Len(CStr(pl.Cells(r, 1).Value)) = 0 Then Exit Do
+        For j = 0 To 6
+            col = 3 + j
+            If Len(CStr(pl.Cells(r, col).Value)) > 0 Then
+                fillc = UScheme(pal, j)
+                pl.Cells(r, col).Interior.Color = fillc
+                pl.Cells(r, col).Font.Color = UBestText(fillc)
+            End If
+        Next j
+        r = r + 1
+    Loop
+    Dim g As Long                                     ' colour the length legend just below the table
+    For g = r To r + 4
+        If InStr(1, CStr(pl.Cells(g, 2).Value), "Length colors", vbTextCompare) > 0 Then
+            For j = 0 To 6
+                col = 3 + j: fillc = UScheme(pal, j)
+                pl.Cells(g, col).Interior.Color = fillc
+                pl.Cells(g, col).Font.Color = UBestText(fillc)
+            Next j
+            Exit For
+        End If
+    Next g
+End Sub
+
+' Click a Pattern Library header (row 4, cols C..J) to sort by it; clicking the same
+' column again flips ascending/descending. Sort state lives in hidden N2 (col) / N3 (dir).
+Public Sub SortPatternLibrary(ByVal sortCol As Long)
+    Dim pl As Worksheet: Set pl = ThisWorkbook.Worksheets("Pattern Library")
+    Const HDR As Long = 4
+    Dim firstR As Long: firstR = HDR + 1
+    Dim lastR As Long: lastR = firstR - 1
+    Dim r As Long: r = firstR
+    Do While r < 500
+        If Not IsNumeric(pl.Cells(r, 1).Value) Then Exit Do
+        If Len(CStr(pl.Cells(r, 1).Value)) = 0 Then Exit Do
+        lastR = r: r = r + 1
+    Loop
+    If lastR <= firstR Then Exit Sub
+    Dim ord As Long
+    If CLng(Val(pl.Range("N2").Value)) = sortCol And CStr(pl.Range("N3").Value) = "D" Then
+        ord = xlAscending: pl.Range("N3").Value = "A"
+    Else
+        ord = xlDescending: pl.Range("N3").Value = "D"
+    End If
+    pl.Range("N2").Value = sortCol
+    On Error GoTo cleanup
+    Application.EnableEvents = False
+    With pl.Sort
+        .SortFields.Clear
+        .SortFields.Add Key:=pl.Range(UColL(sortCol) & firstR & ":" & UColL(sortCol) & lastR), _
+                        SortOn:=xlSortOnValues, Order:=ord, DataOption:=xlSortNormal
+        .SetRange pl.Range("B" & firstR & ":J" & lastR)
+        .Header = xlNo
+        .Apply
+    End With
+    Dim k As Long
+    For k = firstR To lastR
+        pl.Cells(k, 1).Value = k - firstR + 1                              ' renumber the # column
+    Next k
+    RecolorPatternLibrary USchemeIndex(CStr(ThisWorkbook.Worksheets("Loader").Range("J7").Value))
+cleanup:
+    Application.EnableEvents = True
+End Sub
+
 Public Sub ApplyPaletteEverywhere(ByVal schemeName As String)
     Dim t As Worksheet, mf As Worksheet, ld As Worksheet
     Set t = ThisWorkbook.Worksheets("Tally")
@@ -303,8 +412,10 @@ Public Sub ApplyPaletteEverywhere(ByVal schemeName As String)
     On Error Resume Next
     If CStr(t.Range("B8").Value) <> schemeName Then t.Range("B8").Value = schemeName
     If CStr(mf.Range("N2").Value) <> schemeName Then mf.Range("N2").Value = schemeName
+    If CStr(ld.Range("J7").Value) <> schemeName Then ld.Range("J7").Value = schemeName
     ApplyTallyPalette
     RecolorLoaderGrid ld, USchemeIndex(schemeName)
+    RecolorPatternLibrary USchemeIndex(schemeName)
     DrawManifestDiagram
     On Error GoTo 0
     Application.EnableEvents = ev
@@ -319,6 +430,43 @@ MANIFEST_SHEET_CODE = "\r\n".join([
     "Private Sub Worksheet_Change(ByVal Target As Range)",
     '    If Intersect(Target, Me.Range("N2")) Is Nothing Then Exit Sub',
     '    ApplyPaletteEverywhere CStr(Me.Range("N2").Value)',
+    "End Sub",
+])
+
+# Pattern Library sheet code: keep the active-row highlight (sets N1) AND make the
+# header row (row 4) click-to-sort the table by the clicked length / Total column.
+PATTERN_SHEET_CODE = "\r\n".join([
+    "Private Sub Worksheet_SelectionChange(ByVal Target As Range)",
+    "    Dim rw As Long: rw = Target.Row",
+    "    Dim newv As Long: newv = 0",
+    "    If rw >= 5 And rw <= 107 And IsNumeric(Me.Cells(rw, 1).Value) _",
+    "       And Len(CStr(Me.Cells(rw, 1).Value)) > 0 Then newv = rw",
+    '    If Me.Range("N1").Value <> newv Then Me.Range("N1").Value = newv',
+    "    If Target.Cells.Count <> 1 Then Exit Sub",
+    "    If rw = 4 And Target.Column >= 3 And Target.Column <= 10 Then SortPatternLibrary Target.Column",
+    "End Sub",
+])
+
+# Loader sheet code: preserve the row-tag double-click + OnPlannerChange behaviour,
+# but route the new J7 colour picker to ApplyPaletteEverywhere.
+LOADER_SHEET_CODE = "\r\n".join([
+    "Private Sub Worksheet_BeforeDoubleClick(ByVal Target As Range, Cancel As Boolean)",
+    '    If Intersect(Target, Me.Range("A10:A29")) Is Nothing Then Exit Sub',
+    "    Cancel = True",
+    "    Application.EnableEvents = False",
+    '    If InStr(CStr(Target.Value), "7") > 0 Then',
+    '        Target.Value = "5-row"',
+    "    Else",
+    '        Target.Value = "7-row"',
+    "    End If",
+    "    Application.EnableEvents = True",
+    "End Sub",
+    "Private Sub Worksheet_Change(ByVal Target As Range)",
+    '    If Not Intersect(Target, Me.Range("J7")) Is Nothing Then',
+    '        ApplyPaletteEverywhere CStr(Me.Range("J7").Value)',
+    "        Exit Sub",
+    "    End If",
+    "    OnPlannerChange Target",
     "End Sub",
 ])
 
@@ -343,11 +491,23 @@ def replace_in_module(wb, name, find, repl):
 
 
 def add_button(ws, anchor_cell, w, h, name, caption, action):
+    """A 'button' styled to match the workbook's other macro buttons: a navy
+    rounded-rectangle shape with centered bold white text (Form Control buttons
+    can't be coloured, so the rest of the workbook uses shapes via OnAction)."""
     a = ws.Range(anchor_cell)
-    b = ws.Buttons().Add(a.Left, a.Top, w, h)
-    b.Name = name
-    b.Caption = caption
-    b.OnAction = action
+    shp = ws.Shapes.AddShape(MSO_ROUNDED_RECT, a.Left, a.Top, w, h)
+    shp.Name = name
+    shp.Fill.Solid()
+    shp.Fill.ForeColor.RGB = bgr(NAVY)
+    shp.Line.Visible = False
+    tf = shp.TextFrame
+    tf.Characters().Text = caption
+    tf.Characters().Font.Bold = True
+    tf.Characters().Font.Size = 11
+    tf.Characters().Font.Color = bgr(WHITE)
+    tf.HorizontalAlignment = XL_CENTER
+    tf.VerticalAlignment = XL_CENTER
+    shp.OnAction = action
 
 
 def main():
@@ -387,6 +547,46 @@ def main():
             msm.DeleteLines(1, msm.CountOfLines)
         msm.AddFromString(MANIFEST_SHEET_CODE)
 
+        # Loader sheet: re-inject its code so the new J7 colour picker fires
+        # ApplyPaletteEverywhere (keeping its row-tag double-click + OnPlannerChange).
+        ldsheet = wb.Worksheets("Loader")
+        lsm = wb.VBProject.VBComponents(ldsheet.CodeName).CodeModule
+        if lsm.CountOfLines:
+            lsm.DeleteLines(1, lsm.CountOfLines)
+        lsm.AddFromString(LOADER_SHEET_CODE)
+
+        # Pattern Library: keep its active-row highlight, add click-to-sort headers.
+        # N1 = active row (already used); N2 = last sort column, N3 = direction (hidden).
+        plsheet = wb.Worksheets("Pattern Library")
+        for c in ("N2", "N3"):
+            plsheet.Range(c).NumberFormat = ";;;"
+        psm = wb.VBProject.VBComponents(plsheet.CodeName).CodeModule
+        if psm.CountOfLines:
+            psm.DeleteLines(1, psm.CountOfLines)
+        psm.AddFromString(PATTERN_SHEET_CODE)
+
+        # Loader colour picker at J7 (just under the Solve/Clear buttons), matching the
+        # Tally B8 / Manifest N2 pickers. Label above it, list-validated dropdown below.
+        SCHEME_NAMES = ("Color (pastel),Vivid,Material,Tableau,Earth / lumberyard,"
+                        "Jewel tones,Rainbow (warm to cool),Viridis (colour-safe),"
+                        "Sunset (warm),Neon,High contrast,B & W (print)")
+        ldsheet.Range("J6:L6").Merge()
+        ldsheet.Range("J6").Value = "Color scheme:"
+        ldsheet.Range("J6").Font.Bold = True
+        ldsheet.Range("J7:L7").Merge()
+        pal_cell = ldsheet.Range("J7")
+        try:
+            pal_cell.Validation.Delete()
+        except Exception:
+            pass
+        pal_cell.Validation.Add(3, 1, 1, SCHEME_NAMES)   # xlValidateList, xlValidAlertStop, xlBetween
+        pal_cell.Validation.IgnoreBlank = True
+        pal_cell.Validation.InCellDropdown = True
+        pal_cell.Value = "Color (pastel)"
+        pal_cell.Interior.Color = bgr("DDE6ED")          # light input fill + box border
+        pal_cell.Font.Bold = True
+        ldsheet.Range("J7:L7").BorderAround(1, 2)        # xlContinuous, xlThin
+
         # Compound-car dual selection: the 7-row table tracks its picked row in N1, the
         # 5-row table in N2, so a tally can stay selected in BOTH tables at once.
         tw = wb.Worksheets("Tally")
@@ -404,9 +604,9 @@ def main():
         sm.AddFromString(TALLY_SHEET_CODE)
 
         # Send-to-Loader buttons: recommended tally (Tally sheet) + hand-built (Row Patterns).
-        add_button(wb.Worksheets("Tally"), "N21", 165, 34,
+        add_button(wb.Worksheets("Tally"), "J17", 165, 34,
                    "btnSendToLoader", "Send tally to Loader  >>", "SendTallyToLoader")
-        add_button(wb.Worksheets("Row Patterns"), "L1", 205, 30,
+        add_button(wb.Worksheets("Row Patterns"), "L1", 205, 34,
                    "btnSendHandBuild", "Send hand-built tally to Loader  >>", "SendHandBuildToLoader")
 
         # compile check
