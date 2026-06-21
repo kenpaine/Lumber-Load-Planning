@@ -136,7 +136,7 @@
     <div id="paletteWrap"></div>
 
     <div class="brow">
-      <button class="btn primary" onclick="recommend()">Recommend Tallies</button>
+      <button class="btn primary" onclick="recommendTap()">Recommend Tallies</button>
       <button class="btn danger" onclick="clearOut()">Clear</button>
     </div>
     <div class="alert ok" id="status">Pick lengths and click Recommend Tallies.</div>
@@ -165,6 +165,34 @@
 
 <script>
 // ===== Centerbeam 72-ft Car — Tally Recommender (browser port of the .xlsm) =====
+
+// ---------- Native haptics (Capacitor Haptics plugin; app-only — silent on the plain web) ----------
+// This app runs inside the native shell's iframe. Capacitor injects its JS bridge only into the top
+// frame, so we resolve the Haptics plugin from this window or any same-origin ancestor. When no native
+// runtime is present (a normal web browser) every call simply does nothing — no web vibration fallback.
+const Haptic=(function(){
+  function plugin(){
+    let w=window;
+    for(let i=0;i<5&&w;i++){
+      try{ const C=w.Capacitor; if(C&&C.Plugins&&C.Plugins.Haptics) return C.Plugins.Haptics; }catch(e){}
+      if(w===w.parent) break; w=w.parent;
+    }
+    return null;
+  }
+  function impact(style){ const H=plugin(); if(H&&H.impact){ try{ H.impact({style}); }catch(e){} } }
+  function notify(type){ const H=plugin(); if(H&&H.notification){ try{ H.notification({type}); }catch(e){} } }
+  return {
+    available(){ return !!plugin(); },
+    selection(){ const H=plugin(); if(H&&H.selectionChanged){ try{ H.selectionChanged(); }catch(e){} } },
+    light(){ impact("LIGHT"); },
+    medium(){ impact("MEDIUM"); },
+    heavy(){ impact("HEAVY"); },
+    success(){ notify("SUCCESS"); },
+    warning(){ notify("WARNING"); },
+    error(){ notify("ERROR"); }
+  };
+})();
+
 const LENGTHS=[8,10,12,14,16,18,20];
 const LCOLORS={8:"#BBD4EA",10:"#C2E5C9",12:"#FBE7B2",14:"#E5CDEE",16:"#FAC4BC",18:"#BFEAE0",20:"#DCE7AE"};
 const INK="#33414f";
@@ -192,7 +220,7 @@ function lenFill(L){ return SCHEMES[state.palette].m[L]; }
 function lenText(L){ return state.palette===0?INK:bestText(lenFill(L)); }
 function populatePalettes(){ const s=document.getElementById("paletteSel");
   s.innerHTML=SCHEMES.map((p,i)=>`<option value="${i}">${p.name}</option>`).join(""); s.value=String(state.palette); }
-function setPalette(v){ state.palette=+v; renderPalette(); renderLegend(); render(); }
+function setPalette(v){ Haptic.selection(); state.palette=+v; renderPalette(); renderLegend(); render(); }
 
 const TARGET=72, MAX_RECS=15;
 const MODE_TEXT={
@@ -214,7 +242,9 @@ let state={
   patSort:null,    // length to sort patterns by
   handBuild:{},    // patternIndex -> rows to use (symmetric)
   handBuildA:{},   // mixed 7-row side: patternIndex -> rows to use
-  handBuildB:{}    // mixed 5-row side: patternIndex -> rows to use
+  handBuildB:{},   // mixed 5-row side: patternIndex -> rows to use
+  hbLast:{},       // key -> last hand-built rows total (so haptics fire only when a side hits target)
+  lastStatus:"ok"  // kind of the last setStatus ("ok"|"warn") — drives the Recommend-button haptic
 };
 // --- car layout -> per-side rows ---
 function layoutRows(l){ return l==="7+5"?{a:7,b:5,mixed:true}:l==="7+7"?{a:7,b:7,mixed:false}:{a:5,b:5,mixed:false}; }
@@ -282,7 +312,7 @@ function recommendForRows(selSet, rows, mode){
 // ---- main recommend: one car (symmetric) or two independent sides (mixed 7+5) ----
 function recommend(){
   const mode=+document.getElementById("mode").value;
-  state.handBuild={}; state.handBuildA={}; state.handBuildB={};
+  state.handBuild={}; state.handBuildA={}; state.handBuildB={}; state.hbLast={};
   if(isMixed()){
     const R=layoutRows(state.carLayout);
     state.A=recommendForRows(state.selA, R.a, mode);
@@ -302,11 +332,14 @@ function recommend(){
   render();
 }
 function makeRec(label,counts,carRows){ const ft=ftOf(counts); return {label,counts,pcs:pcsOf(counts),ft,ok:ft===carRows*72}; }
+// Explicit "Recommend Tallies" tap: recompute, then a success/warning notification haptic on the outcome.
+function recommendTap(){ recommend(); if(state.lastStatus==="ok") Haptic.success(); else Haptic.warning(); }
 
-function setStatus(kind,msg){ const s=document.getElementById("status"); s.className="alert "+(kind==="ok"?"ok":"warn"); s.textContent=msg; }
+function setStatus(kind,msg){ state.lastStatus=kind; const s=document.getElementById("status"); s.className="alert "+(kind==="ok"?"ok":"warn"); s.textContent=msg; }
 function clearOut(){
-  state.patterns=[]; state.recs=[]; state.A=null; state.B=null; state.recSort=null; state.patSort=null; state.handBuild={}; state.handBuildA={}; state.handBuildB={};
+  state.patterns=[]; state.recs=[]; state.A=null; state.B=null; state.recSort=null; state.patSort=null; state.handBuild={}; state.handBuildA={}; state.handBuildB={}; state.hbLast={};
   setStatus("ok","Cleared. Choose options and click Recommend Tallies.");
+  Haptic.light();
   render();
 }
 
@@ -384,10 +417,14 @@ function renderPatterns(){
   }
 }
 function setRows(key,idx,val){
+  const prev=state.hbLast[key];                 // rows total before this keystroke
   const map=hbCtx(key).map;
   const n=parseInt(val,10);
   if(!val||isNaN(n)||n<=0) delete map[idx]; else map[idx]=n;
-  updateHandTotal(key);
+  const rows=updateHandTotal(key);              // recompute (also refreshes state.hbLast[key])
+  const target=hbCtx(key).target;
+  if(rows>0 && rows===target && prev!==rows) Haptic.success();  // this side just hit its target exactly
+  else Haptic.selection();                                      // otherwise a light tick per edit
 }
 function updateHandTotal(key){
   const {pats,map,target}=hbCtx(key);
@@ -396,6 +433,8 @@ function updateHandTotal(key){
   LENGTHS.forEach(L=>{ const el=document.getElementById("tot-"+key+"-"+L); if(el) el.textContent=tot[L]||""; });
   const r=document.getElementById("tot-"+key+"-rows");
   if(r){ r.textContent=rows+" / "+target+" rows"+(rows===target?"  ✓":""); r.style.color=(rows===target)?"#2f7d4f":""; }
+  state.hbLast[key]=rows;
+  return rows;
 }
 
 function sortBy(kind,L){
@@ -421,12 +460,13 @@ function renderPalette(){
   }
 }
 function toggleLen(L,on,side){
+  Haptic.selection();
   const set = side==="A"?state.selA : side==="B"?state.selB : state.selected;
   if(on) set.add(L); else set.delete(L);
   recommend();
 }
-function setLayout(v){ state.carLayout=v; state.recSort=null; state.patSort=null; renderPalette(); recommend(); }
-function onModeChange(){ document.getElementById("modeHint").textContent=MODE_TEXT[+document.getElementById("mode").value]; recommend(); }
+function setLayout(v){ Haptic.selection(); state.carLayout=v; state.recSort=null; state.patSort=null; renderPalette(); recommend(); }
+function onModeChange(){ Haptic.selection(); document.getElementById("modeHint").textContent=MODE_TEXT[+document.getElementById("mode").value]; recommend(); }
 function renderLegend(){ document.getElementById("legend").innerHTML=LENGTHS.map(L=>`<span class="lswatch" style="background:${lenFill(L)};color:${lenText(L)}">${L}'</span>`).join(""); }
 
 function renderHelp(){
@@ -453,6 +493,7 @@ function renderHelp(){
 
 // ---- tabs / theme ----
 function switchTab(t){
+  Haptic.selection();
   document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.tab===t));
   document.querySelectorAll(".tc").forEach(x=>x.classList.remove("active"));
   document.getElementById("tab-"+t).classList.add("active");
@@ -464,14 +505,16 @@ function applyTheme(t){
   const b=document.getElementById("themeBtn"); if(b) b.textContent=(state.theme==="light")?"☀ Light":"🌙 Dark";
 }
 function initTheme(){ let s="dark"; try{ s=localStorage.getItem("ctr-theme")||"dark"; }catch(e){} applyTheme(s); }
-function toggleTheme(){ applyTheme(state.theme==="light"?"dark":"light"); try{ localStorage.setItem("ctr-theme",state.theme); }catch(e){} }
+function toggleTheme(){ Haptic.selection(); applyTheme(state.theme==="light"?"dark":"light"); try{ localStorage.setItem("ctr-theme",state.theme); }catch(e){} }
 
 // Click any tallies/pattern row to highlight it; it stays lit until another row is clicked.
 function rowHighlight(ev){
   const tr=ev.target.closest("table.t tbody tr");
   if(!tr || tr.classList.contains("totrow")) return;   // ignore headers and the hand-build total
+  if(tr.classList.contains("activerow")) return;       // already highlighted — no extra buzz
   document.querySelectorAll("table.t tbody tr.activerow").forEach(r=>r.classList.remove("activerow"));
   tr.classList.add("activerow");
+  Haptic.selection();
 }
 
 window.addEventListener("load",()=>{

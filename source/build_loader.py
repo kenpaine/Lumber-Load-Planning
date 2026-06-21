@@ -1,0 +1,339 @@
+"""Build Lumber_Loader.xlsm — the single combined workbook.
+
+Starts from the Layout Planner workbook (the "Loader" — it owns the solver,
+Manifest and Pattern Library), copies the Tally's two sheets to the front (Tally
+comes first), renames the sheets (Recommender->Tally, Planner->Loader), imports
+the TallyRecommender module, and injects LoaderTransfer — two "Send to Loader"
+buttons (the Excel twin of the web app's "Load into car"):
+
+  * Tally sheet  -> SendTallyToLoader     (the recommended tally on the active row)
+  * Row Patterns -> SendHandBuildToLoader (the hand-built tally totals)
+"""
+import os
+import shutil
+import pythoncom
+from win32com.client import DispatchEx
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PLANNER = os.path.join(ROOT, "Centerbeam_Lumber_Layout_Planner.xlsm")
+TALLY = os.path.join(ROOT, "Centerbeam_Tally_Recommender.xlsm")
+OUT = os.path.join(ROOT, "Lumber_Loader.xlsm")
+BAS = os.path.join(ROOT, "source", "tally_recommender.bas")
+XL_MACRO = 52  # xlOpenXMLWorkbookMacroEnabled
+
+TRANSFER_VBA = r'''Option Explicit
+
+' ===== Tally -> Loader transfer (the Excel twin of the web "Load into car") =====
+Private Const TALLY_SHEET As String = "Tally"
+Private Const PAT_SHEET As String = "Row Patterns"
+Private Const LOADER_SHEET As String = "Loader"
+Private Const CAR_CELL As String = "B5"       ' Tally car-layout cell
+Private Const RECA_TOP As Long = 23           ' recommended table A rows 23..33 (symmetric / 7-row)
+Private Const RECA_BOT As Long = 33
+Private Const RECB_TOP As Long = 37           ' recommended table B rows 37..47 (5-row, mixed)
+Private Const RECB_BOT As Long = 47
+Private Const PLI_FIRST As Long = 10          ' Loader line-item rows 10..29
+Private Const PLI_LAST As Long = 29
+Private Const DEF_PROD As String = "2x6"      ' default product/grade (a tally is length-only)
+Private Const DEF_GRADE As String = "2"
+
+' Layout token ("5+5"/"7+5"/"7+7") parsed out of the Tally's descriptive B5 string.
+Private Function CarToken() As String
+    Dim raw As String
+    raw = CStr(ThisWorkbook.Worksheets(TALLY_SHEET).Range(CAR_CELL).Value)
+    If InStr(raw, "7+5") > 0 Then
+        CarToken = "7+5"
+    ElseIf InStr(raw, "7+7") > 0 Then
+        CarToken = "7+7"
+    Else
+        CarToken = "5+5"
+    End If
+End Function
+
+' Read the 7 per-length piece counts (cols C..I = 8'..20') from row r of ws.
+' Returns True if any count > 0.
+Private Function ReadCounts(ws As Worksheet, ByVal r As Long, ByRef cnt() As Long) As Boolean
+    Dim i As Long
+    ReadCounts = False
+    For i = 0 To 6
+        cnt(i) = CLng(Val(CStr(ws.Cells(r, 3 + i).Value)))
+        If cnt(i) > 0 Then ReadCounts = True
+    Next i
+End Function
+
+' Clear Loader input rows. keepTag="" clears all; otherwise keeps rows whose Side = keepTag.
+Private Sub ClearLoaderLines(ld As Worksheet, ByVal keepTag As String)
+    Dim row As Long
+    For row = PLI_FIRST To PLI_LAST
+        If keepTag = "" Or CStr(ld.Cells(row, 1).Value) <> keepTag Then
+            ld.Range(ld.Cells(row, 1), ld.Cells(row, 5)).ClearContents   ' inputs only; F/G/H are formulas
+        End If
+    Next row
+End Sub
+
+' Write a length-count set into the first empty Loader rows (no clearing here).
+Private Sub WriteCounts(ld As Worksheet, cnt() As Long, ByVal mixed As Boolean, ByVal sideTag As String)
+    Dim lengths As Variant: lengths = Array(8, 10, 12, 14, 16, 18, 20)
+    Dim i As Long, wrow As Long: wrow = PLI_FIRST
+    For i = 0 To 6
+        If cnt(i) > 0 Then
+            Do While wrow <= PLI_LAST And Len(Trim(CStr(ld.Cells(wrow, 2).Value))) > 0
+                wrow = wrow + 1
+            Loop
+            If wrow > PLI_LAST Then Exit For
+            If mixed Then ld.Cells(wrow, 1).Value = sideTag
+            ld.Cells(wrow, 2).Value = DEF_PROD
+            ld.Cells(wrow, 3).Value = lengths(i)
+            ld.Cells(wrow, 4).Value = DEF_GRADE
+            ld.Cells(wrow, 5).Value = cnt(i)
+            wrow = wrow + 1
+        End If
+    Next i
+End Sub
+
+' Solve, re-enable events, and (only when the car is complete) jump to the Loader.
+Private Sub FinishLoad(ld As Worksheet, ByVal jumpToLoader As Boolean)
+    Application.EnableEvents = True
+    SolveLayoutQuiet
+    If jumpToLoader Then
+        ld.Activate
+        ld.Range("A1").Select
+    End If
+End Sub
+
+' ---- Send recommended tallies to the Loader ----
+' Symmetric car: the active row's tally fills the whole car.
+' Compound (7+5) car: the user picks a row in EACH table -- the 7-row table is
+' tracked in N1, the 5-row table in N2 -- and one Send loads both sides.
+Public Sub SendTallyToLoader()
+    Dim t As Worksheet, ld As Worksheet
+    Set t = ThisWorkbook.Worksheets(TALLY_SHEET)
+    Set ld = ThisWorkbook.Worksheets(LOADER_SHEET)
+    If ActiveSheet.Name <> TALLY_SHEET Then t.Activate
+
+    Dim carT As String: carT = CarToken()
+
+    If carT <> "7+5" Then
+        ' --- symmetric: send the active row's tally ---
+        Dim r As Long: r = ActiveCell.Row
+        Dim cnt(0 To 6) As Long
+        If Not (r >= RECA_TOP And r <= RECA_BOT) _
+           Or Len(Trim(CStr(t.Cells(r, 2).Value))) = 0 Or Not ReadCounts(t, r, cnt) Then
+            MsgBox "Click a cell in a recommended-tally row first, then Send to Loader.", vbExclamation, "Send to Loader"
+            Exit Sub
+        End If
+        Application.EnableEvents = False
+        On Error GoTo doneSym
+        ld.Range("C5").Value = carT
+        ClearLoaderLines ld, ""
+        WriteCounts ld, cnt, False, ""
+doneSym:
+        FinishLoad ld, True
+        Exit Sub
+    End If
+
+    ' --- compound 7+5: load BOTH tables' picks (N1 = 7-row table, N2 = 5-row table) ---
+    Dim p7 As Long, p5 As Long
+    p7 = CLng(Val(CStr(t.Range("N1").Value)))
+    p5 = CLng(Val(CStr(t.Range("N2").Value)))
+    Dim c7(0 To 6) As Long, c5(0 To 6) As Long
+    Dim has7 As Boolean, has5 As Boolean
+    If p7 >= RECA_TOP And p7 <= RECA_BOT Then has7 = ReadCounts(t, p7, c7)
+    If p5 >= RECB_TOP And p5 <= RECB_BOT Then has5 = ReadCounts(t, p5, c5)
+    If (Not has7) And (Not has5) Then
+        MsgBox "Compound car: click a tally row in the 7-row table AND a row in the 5-row table, then Send to Loader.", vbExclamation, "Send to Loader"
+        Exit Sub
+    End If
+
+    Application.EnableEvents = False
+    On Error GoTo doneMix
+    ld.Range("C5").Value = carT
+    ClearLoaderLines ld, ""              ' both picks together are the whole car
+    If has7 Then WriteCounts ld, c7, True, "7-row"
+    If has5 Then WriteCounts ld, c5, True, "5-row"
+doneMix:
+    FinishLoad ld, (has7 And has5)       ' jump to the Loader once both sides are picked
+End Sub
+
+' ---- Send the hand-built tally from the Row Patterns tab (the whole car) ----
+Public Sub SendHandBuildToLoader()
+    Dim pat As Worksheet, ld As Worksheet
+    Set pat = ThisWorkbook.Worksheets(PAT_SHEET)
+    Set ld = ThisWorkbook.Worksheets(LOADER_SHEET)
+
+    ' Find the hand-build total row(s): "YOUR HAND-BUILT TALLY ..." in col B.
+    ' One on a symmetric car; two on a mixed car (7-row grid first, then 5-row).
+    Dim totRow(0 To 3) As Long, nTot As Long: nTot = 0
+    Dim r As Long, lastR As Long
+    lastR = pat.Cells(pat.Rows.Count, 2).End(xlUp).Row
+    For r = 1 To lastR
+        If InStr(1, CStr(pat.Cells(r, 2).Value), "YOUR HAND-BUILT TALLY", vbTextCompare) > 0 Then
+            If nTot <= 3 Then totRow(nTot) = r
+            nTot = nTot + 1
+        End If
+    Next r
+    If nTot = 0 Then
+        MsgBox "Hand-build a tally first: on the Row Patterns tab type 'Rows to use' for the patterns you want, then Send to Loader.", vbExclamation, "Send to Loader"
+        Exit Sub
+    End If
+
+    Dim carT As String: carT = CarToken()
+    Dim mixed As Boolean: mixed = (carT = "7+5")
+    Dim cntA(0 To 6) As Long, cntB(0 To 6) As Long
+    Dim anyA As Boolean, anyB As Boolean
+    anyA = ReadCounts(pat, totRow(0), cntA)
+    If mixed And nTot >= 2 Then anyB = ReadCounts(pat, totRow(1), cntB)
+    If (Not anyA) And (Not anyB) Then
+        MsgBox "The hand-built tally is empty -- set some 'Rows to use' first.", vbExclamation, "Send to Loader"
+        Exit Sub
+    End If
+
+    Application.EnableEvents = False
+    On Error GoTo done
+    ld.Range("C5").Value = carT
+    ClearLoaderLines ld, ""          ' the hand-build is the whole car -> clear everything
+    If Not mixed Then
+        WriteCounts ld, cntA, False, ""
+    Else
+        If anyA Then WriteCounts ld, cntA, True, "7-row"
+        If anyB Then WriteCounts ld, cntB, True, "5-row"
+    End If
+done:
+    FinishLoad ld, True          ' hand-build is always the whole car
+End Sub
+'''
+
+# Replaces the copied Tally sheet's selection event so each recommended-tally table
+# keeps its OWN highlighted pick (7-row table -> N1, 5-row table -> N2), letting you
+# select a tally from both tables on a compound car. The reactive Worksheet_Change
+# (palette / car-layout edits re-run the recommender) is preserved unchanged.
+TALLY_SHEET_CODE = "\r\n".join([
+    "Private Sub Worksheet_SelectionChange(ByVal Target As Range)",
+    "    Dim rw As Long: rw = Target.Row",
+    "    If rw >= 23 And rw <= 33 And IsNumeric(Me.Cells(rw, 1).Value) And Len(CStr(Me.Cells(rw, 1).Value)) > 0 Then",
+    '        If Me.Range("N1").Value <> rw Then Me.Range("N1").Value = rw',
+    "    ElseIf rw >= 37 And rw <= 47 And IsNumeric(Me.Cells(rw, 1).Value) And Len(CStr(Me.Cells(rw, 1).Value)) > 0 Then",
+    '        If Me.Range("N2").Value <> rw Then Me.Range("N2").Value = rw',
+    "    End If",
+    "    If Target.Cells.Count <> 1 Then Exit Sub",
+    "    If Target.Column < 3 Or Target.Column > 9 Then Exit Sub",
+    "    If Target.Row = 22 Then SortRecsByRange Target.Column, 23, 33",
+    "    If Target.Row = 36 Then SortRecsByRange Target.Column, 37, 47",
+    "End Sub",
+    "Private Sub Worksheet_Change(ByVal Target As Range)",
+    '    If Not Intersect(Target, Me.Range("B8")) Is Nothing Then',
+    "        Application.EnableEvents = False",
+    "        ApplyTallyPalette",
+    "        Application.EnableEvents = True",
+    "        Exit Sub",
+    "    End If",
+    '    If Intersect(Target, Me.Range("B5:B6")) Is Nothing Then Exit Sub',
+    "    Application.EnableEvents = False",
+    "    RecommendTallies",
+    "    Application.EnableEvents = True",
+    "End Sub",
+])
+
+
+def add_module(wb, name, code):
+    comp = wb.VBProject.VBComponents.Add(1)  # vbext_ct_StdModule
+    comp.Name = name
+    if comp.CodeModule.CountOfLines:  # drop any auto-inserted "Option Explicit"
+        comp.CodeModule.DeleteLines(1, comp.CodeModule.CountOfLines)
+    comp.CodeModule.AddFromString(code)
+
+
+def replace_in_module(wb, name, find, repl):
+    """In-place text replace inside an existing standard module's code."""
+    cm = wb.VBProject.VBComponents(name).CodeModule
+    n = cm.CountOfLines
+    code = cm.Lines(1, n) if n else ""
+    new = code.replace(find, repl)
+    if new != code:
+        cm.DeleteLines(1, n)
+        cm.AddFromString(new)
+
+
+def add_button(ws, anchor_cell, w, h, name, caption, action):
+    a = ws.Range(anchor_cell)
+    b = ws.Buttons().Add(a.Left, a.Top, w, h)
+    b.Name = name
+    b.Caption = caption
+    b.OnAction = action
+
+
+def main():
+    shutil.copyfile(PLANNER, OUT)
+    with open(BAS, "r", encoding="utf-8") as f:
+        tally_code = f.read()
+
+    xl = DispatchEx("Excel.Application")
+    xl.Visible = False
+    xl.DisplayAlerts = False
+    xl.EnableEvents = False
+    try:
+        wb = xl.Workbooks.Open(OUT)
+        src = xl.Workbooks.Open(TALLY, ReadOnly=True)
+        src.Sheets("Row Patterns").Copy(Before=wb.Sheets(1))
+        src.Sheets("Recommender").Copy(Before=wb.Sheets(1))
+        src.Close(SaveChanges=False)
+
+        # Renames: Recommender -> Tally, Planner -> Loader. Renaming a sheet auto-updates
+        # all *formula* references; VBA *string literals* are updated by hand here.
+        wb.Worksheets("Recommender").Name = "Tally"
+        wb.Worksheets("Planner").Name = "Loader"
+        replace_in_module(wb, "CenterbeamSolver", '"Planner"', '"Loader"')  # 5x Sheets("Planner")
+        replace_in_module(wb, "ManifestDiagram", '"Planner"', '"Loader"')   # 1x Worksheets("Planner")
+        tally_code = tally_code.replace(
+            'Const REC_SHEET As String = "Recommender"',
+            'Const REC_SHEET As String = "Tally"')
+
+        add_module(wb, "TallyRecommender", tally_code)
+        add_module(wb, "LoaderTransfer", TRANSFER_VBA)
+
+        # Compound-car dual selection: the 7-row table tracks its picked row in N1, the
+        # 5-row table in N2, so a tally can stay selected in BOTH tables at once.
+        tw = wb.Worksheets("Tally")
+        for c in ("N1", "N2"):
+            tw.Range(c).Value = 0
+            tw.Range(c).NumberFormat = ";;;"
+        rb = tw.Range("A37:L47")                                            # 5-row table highlight -> N2
+        rb.FormatConditions.Delete()
+        fcb = rb.FormatConditions.Add(2, pythoncom.Empty, "=ROW()=$N$2")    # 2 = xlExpression
+        fcb.Interior.Color = 15652797                                       # BGR of BDD7EE (light blue)
+        fcb.StopIfTrue = True
+        sm = wb.VBProject.VBComponents(tw.CodeName).CodeModule              # dual-pick SelectionChange
+        if sm.CountOfLines:
+            sm.DeleteLines(1, sm.CountOfLines)
+        sm.AddFromString(TALLY_SHEET_CODE)
+
+        # Send-to-Loader buttons: recommended tally (Tally sheet) + hand-built (Row Patterns).
+        add_button(wb.Worksheets("Tally"), "N21", 165, 34,
+                   "btnSendToLoader", "Send tally to Loader  >>", "SendTallyToLoader")
+        add_button(wb.Worksheets("Row Patterns"), "L1", 205, 30,
+                   "btnSendHandBuild", "Send hand-built tally to Loader  >>", "SendHandBuildToLoader")
+
+        # compile check
+        xl.EnableEvents = True
+        compiled = True
+        try:
+            xl.Run("ApplyTallyPalette")
+        except Exception as e:
+            compiled = False
+            print("  ! ApplyTallyPalette failed:", e)
+        xl.EnableEvents = False
+
+        wb.Save()
+        sheets = [wb.Sheets(i).Name for i in range(1, wb.Sheets.Count + 1)]
+        modules = [c.Name for c in wb.VBProject.VBComponents]
+        wb.Close(SaveChanges=True)
+        print("compiled:", compiled)
+        print("sheets:", sheets)
+        print("modules:", modules)
+    finally:
+        xl.Quit()
+    print("built ->", OUT, "(%.0f KB)" % (os.path.getsize(OUT) / 1024))
+
+
+if __name__ == "__main__":
+    main()

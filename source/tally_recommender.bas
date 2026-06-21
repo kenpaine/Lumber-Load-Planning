@@ -100,7 +100,7 @@ Public Sub RecommendTallies()
     Set ws = ThisWorkbook.Worksheets(REC_SHEET)
     Set ws2 = ThisWorkbook.Worksheets(PAT_SHEET)
     Application.ScreenUpdating = False
-    ws.Range("N1").Value = 0: ws2.Range("N1").Value = 0   ' reset active-row highlight
+    ws.Range("N1").Value = 0: ws.Range("N2").Value = 0: ws2.Range("N1").Value = 0   ' reset active-row highlight (N2 = compound 5-row pick)
 
     Dim L As Variant: L = Lengths()
     Dim aRows As Integer, bRows As Integer, mixed As Boolean
@@ -427,9 +427,12 @@ Private Function WriteGrid(ws2 As Worksheet, ByVal startRow As Long, title As St
     ' target-aware total line (e.g. "5 / 7 rows" + " OK" when it matches)
     Dim br As Long: br = lastPat + 1
     ws2.Cells(br, 2).Value = "YOUR HAND-BUILT TALLY (set 'Rows to use' above):"
+    Dim rng As String
     For i = 0 To 6
+        rng = ColL(3 + i) & firstPat & ":" & ColL(3 + i) & lastPat & ",$J$" & firstPat & ":$J$" & lastPat
+        ' blank (not 0 or #####) for unused lengths, matching the web app's hand-build total
         ws2.Cells(br, 3 + i).Formula = _
-            "=SUMPRODUCT(" & ColL(3 + i) & firstPat & ":" & ColL(3 + i) & lastPat & ",$J$" & firstPat & ":$J$" & lastPat & ")"
+            "=IFERROR(IF(SUMPRODUCT(" & rng & ")=0,"""",SUMPRODUCT(" & rng & ")),"""")"
     Next i
     ws2.Cells(br, 10).Formula = _
         "=SUM($J$" & firstPat & ":$J$" & lastPat & ")&"" / " & target & " rows""&IF(SUM($J$" & firstPat & ":$J$" & lastPat & ")=" & target & ","" OK"","""")"
@@ -545,6 +548,6 @@ Public Sub ClearOutputsButton()
     Dim ws2 As Worksheet: Set ws2 = ThisWorkbook.Worksheets(PAT_SHEET)
     ClearRecTables ws
     ClearPatterns ws2
-    ws.Range("N1").Value = 0: ws2.Range("N1").Value = 0   ' reset active-row highlight
+    ws.Range("N1").Value = 0: ws.Range("N2").Value = 0: ws2.Range("N1").Value = 0   ' reset active-row highlight (N2 = compound 5-row pick)
     ws.Range(STATUS_CELL).Value = "Cleared. Choose options and click Recommend Tallies."
 End Sub

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Centerbeam Lumber Car Layout Planner — 72 ft</title>
+<title>Lumber Loader — Centerbeam 72 ft</title>
 <style>
   :root{
     --bg:#1a1f16;--bg2:#222820;--bg3:#2b3126;--border:#3d4a38;--border2:#4d5e47;
@@ -35,6 +35,17 @@
   .btn.primary:hover{background:var(--green);color:#fff}
   .btn.danger{border-color:var(--red)}.btn.danger:hover{background:var(--red);color:#fff}
   .brow{display:flex;gap:6px}.brow .btn{flex:1}
+  /* mode switch (Recommend | Build) + recommend-mode length palette */
+  .modesw{display:flex;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:4px}
+  .modebtn{flex:1;padding:8px 6px;border-radius:6px;border:0;background:none;color:var(--text3);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}
+  .modebtn.active{background:var(--green3);color:#d8f0d0}
+  .modehint{font-size:11px;color:var(--text3);line-height:1.5}
+  .palette{display:flex;flex-direction:column;gap:4px}
+  .prow{display:flex;align-items:center;gap:8px;padding:4px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;cursor:pointer;user-select:none}
+  .prow:hover{border-color:var(--green)}
+  .prow input{width:15px;height:15px;accent-color:var(--green);cursor:pointer}
+  .lchip{display:inline-flex;align-items:center;justify-content:center;min-width:40px;padding:2px 8px;border-radius:3px;color:#33414f;font-weight:700;font-size:12px}
+  .prow .pname{font-size:12px;color:var(--text2)}
   .addgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
   .addgrid .full{grid-column:1 / -1}
   .lf-banner{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:9px 11px;display:flex;justify-content:space-between;align-items:center}
@@ -95,6 +106,9 @@
   /* click-to-highlight: the active table row stays light blue until another is clicked */
   table.t tbody tr{cursor:pointer}
   table.t tbody tr.activerow td{background:#bdd7ee!important;color:#15314e!important}
+  .rinput{width:56px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:12px;text-align:center;outline:none}
+  .rinput:focus{border-color:var(--green)}
+  .totrow td{background:var(--bg3);font-weight:700;border-top:2px solid var(--green)}
   .secttitle{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--green2);margin:14px 0 6px}
   .rowlbl{font-weight:700;color:var(--green2)}
   .cell-pack{color:#fff;font-weight:700;font-size:11px;border-width:2px!important;border-style:solid!important}
@@ -161,14 +175,20 @@
 </head>
 <body>
 <header>
-  <h1>🚃 Centerbeam Lumber Car Layout Planner</h1>
-  <span class="sub">72 ft · product × length × grade · exact 72‑ft rows</span>
+  <h1>🚃 Lumber Loader</h1>
+  <span class="sub">Centerbeam 72 ft · build a tally, then load the car</span>
   <button class="btn theme-toggle" id="themeBtn" onclick="toggleTheme()" title="Toggle light / dark mode">🌙 Dark</button>
 </header>
 
 <div class="app">
   <div class="sidebar">
-    <div class="sec">Configuration</div>
+    <div class="modesw" id="modeSwitch">
+      <button class="modebtn active" id="modeRecommend" onclick="setMode('recommend')">◆ Tally</button>
+      <button class="modebtn" id="modeBuild" onclick="setMode('build')">▦ Loader</button>
+    </div>
+    <div class="modehint" id="modeHint"></div>
+
+    <div class="sec">Car Setup</div>
     <div>
       <label>Car layout (rows per side)</label>
       <select id="carLayout" onchange="reconfigure()">
@@ -178,60 +198,80 @@
       </select>
     </div>
     <div>
-      <label>Single product / grade?</label>
-      <select id="singleMode" onchange="toggleSingle()">
-        <option value="no" selected>No — mixed load</option>
-        <option value="yes">Yes — one product + grade</option>
-      </select>
-    </div>
-    <div id="singleBox" style="display:none">
-      <div class="addgrid">
-        <div><label>Product (all rows)</label><select id="singleProduct" onchange="Haptic.selection();applySingle()"></select></div>
-        <div><label>Grade (all rows)</label><select id="singleGrade" onchange="Haptic.selection();applySingle()"></select></div>
-      </div>
+      <label>Color scheme (length fill)</label>
+      <select id="paletteSelP" onchange="setPalette(this.value)"></select>
     </div>
 
-    <div class="sec">Add Lumber Pack</div>
-    <div class="addgrid">
-      <div id="addProdField"><label>Product</label><select id="addProduct"></select></div>
-      <div id="addLenField"><label>Length</label><select id="addLength"></select></div>
-      <div id="addGradeField"><label>Grade</label><select id="addGrade"></select></div>
-      <div id="addSideField" class="full" style="display:none"><label>Side — which row height</label>
-        <div class="sideseg sideseg-lg" id="addSideToggle">
-          <b class="seg on7" onclick="Haptic.selection();setAddSide(7)">7‑row side</b><b class="seg" onclick="Haptic.selection();setAddSide(5)">5‑row side</b>
+    <div id="recommendPanel">
+      <div>
+        <label>Match mode</label>
+        <select id="matchMode" onchange="onMatchModeChange()">
+          <option value="1">Palette — use only selected</option>
+          <option value="2" selected>Each selected must appear</option>
+          <option value="3">Each must appear + fillers</option>
+        </select>
+      </div>
+      <div id="lenPaletteWrap"></div>
+      <button class="btn primary full" style="margin-top:10px" onclick="recommendTap()">◆ Recommend Tallies</button>
+      <div class="alert ok" id="recStatus" style="margin-top:8px">Pick lengths, then Recommend.</div>
+    </div>
+
+    <div id="buildPanel" style="display:none">
+      <div>
+        <label>Single product / grade?</label>
+        <select id="singleMode" onchange="toggleSingle()">
+          <option value="no" selected>No — mixed load</option>
+          <option value="yes">Yes — one product + grade</option>
+        </select>
+      </div>
+      <div id="singleBox" style="display:none">
+        <div class="addgrid">
+          <div><label>Product (all rows)</label><select id="singleProduct" onchange="Haptic.selection();applySingle()"></select></div>
+          <div><label>Grade (all rows)</label><select id="singleGrade" onchange="Haptic.selection();applySingle()"></select></div>
         </div>
       </div>
-      <div id="addQtyField"><label>Packs</label><input type="number" id="addQty" value="1" min="1" max="999"></div>
-      <div class="full" id="singleHint" style="display:none;font-size:11px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 8px"></div>
-      <button class="btn primary full" onclick="addItem()">+ Add to Inventory</button>
-    </div>
 
-    <div class="sec">Inventory</div>
-    <div class="lf-banner">
-      <div>
-        <div class="lf-label">Total Lineal Footage</div>
-        <div class="lf-val" id="lfVal">0</div>
-        <div class="lf-sub" id="lfSub">0 packs</div>
+      <div class="sec">Add Lumber Pack</div>
+      <div class="addgrid">
+        <div id="addProdField"><label>Product</label><select id="addProduct"></select></div>
+        <div id="addLenField"><label>Length</label><select id="addLength"></select></div>
+        <div id="addGradeField"><label>Grade</label><select id="addGrade"></select></div>
+        <div id="addSideField" class="full" style="display:none"><label>Side — which row height</label>
+          <div class="sideseg sideseg-lg" id="addSideToggle">
+            <b class="seg on7" onclick="Haptic.selection();setAddSide(7)">7‑row side</b><b class="seg" onclick="Haptic.selection();setAddSide(5)">5‑row side</b>
+          </div>
+        </div>
+        <div id="addQtyField"><label>Packs</label><input type="number" id="addQty" value="1" min="1" max="999"></div>
+        <div class="full" id="singleHint" style="display:none;font-size:11px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 8px"></div>
+        <button class="btn primary full" onclick="addItem()">+ Add to Inventory</button>
       </div>
-      <div style="text-align:right">
-        <div class="lf-label">Capacity</div>
-        <div style="font-size:15px;font-weight:600;color:var(--text2)" id="lfCap">—</div>
-        <div class="lf-need" id="lfNeed">—</div>
-      </div>
-    </div>
-    <div id="sideFit" class="screen-only" style="font-size:11px;line-height:1.5;margin:2px 0 4px"></div>
-    <div class="ilist" id="itemList"></div>
-    <div class="brow">
-      <button class="btn primary" id="solveBtn" onclick="solveTap()">⚡ Solve Layout</button>
-      <button class="btn danger" onclick="clearAll()">✕ Clear</button>
-    </div>
 
-    <div class="sec">Load Statistics</div>
-    <div class="sgrid" id="statsGrid"></div>
-    <div id="loadAlert"></div>
+      <div class="sec">Inventory</div>
+      <div class="lf-banner">
+        <div>
+          <div class="lf-label">Total Lineal Footage</div>
+          <div class="lf-val" id="lfVal">0</div>
+          <div class="lf-sub" id="lfSub">0 packs</div>
+        </div>
+        <div style="text-align:right">
+          <div class="lf-label">Capacity</div>
+          <div style="font-size:15px;font-weight:600;color:var(--text2)" id="lfCap">—</div>
+          <div class="lf-need" id="lfNeed">—</div>
+        </div>
+      </div>
+      <div id="sideFit" class="screen-only" style="font-size:11px;line-height:1.5;margin:2px 0 4px"></div>
+      <div class="ilist" id="itemList"></div>
+      <div class="brow">
+        <button class="btn primary" id="solveBtn" onclick="solveTap()">⚡ Solve Layout</button>
+        <button class="btn danger" onclick="clearAll()">✕ Clear</button>
+      </div>
+
+      <div class="sec">Load Statistics</div>
+      <div class="sgrid" id="statsGrid"></div>
+      <div id="loadAlert"></div>
+    </div>
 
     <div class="sec">Length Colors (fill)</div>
-    <select id="paletteSelP" onchange="setPalette(this.value)" style="margin-bottom:8px"></select>
     <div class="legend" id="legendLength"></div>
     <div class="sec">Product Colors (border)</div>
     <div class="legend" id="legendProduct"></div>
@@ -241,6 +281,8 @@
 
   <div class="main">
     <div class="tabbar">
+      <div class="tab" id="tab-tallies-btn" style="display:none" onclick="switchTab('tallies')">Tally</div>
+      <div class="tab" id="tab-rowpat-btn" style="display:none" onclick="switchTab('rowpat')">Row Patterns</div>
       <div class="tab active" onclick="switchTab('visual')">Visual Layout</div>
       <div class="tab" onclick="switchTab('rows')">Row Detail</div>
       <div class="tab" onclick="switchTab('manifest')">Manifest</div>
@@ -261,6 +303,8 @@
       <div class="legendbar" id="legendBar"></div>
     </div>
 
+    <div class="tc" id="tab-tallies"><div class="pad" id="talliesBox"></div></div>
+    <div class="tc" id="tab-rowpat"><div class="pad" id="rowPatBox"></div></div>
     <div class="tc" id="tab-rows"><div class="pad" id="rowDetail"></div></div>
     <div class="tc" id="tab-manifest"><div class="pad" id="manifest"></div></div>
     <div class="tc" id="tab-patterns"><div class="pad" id="patterns"></div></div>
@@ -340,7 +384,9 @@ function populatePalettes(){ const s=document.getElementById("paletteSelP"); if(
   s.innerHTML=SCHEMES.map((p,i)=>`<option value="${i}">${p.name}</option>`).join(""); s.value=String(state.palette); }
 function setPalette(v){ Haptic.selection(); state.palette=+v; const s=document.getElementById("paletteSelP"); if(s) s.value=String(state.palette); renderAll(); }
 
-let state={numRows:10,carLayout:"5+5",split:{aRows:5,bRows:5,aTag:5,bTag:5,mixed:false},addSide:7,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2",palette:0};
+let state={numRows:10,carLayout:"5+5",split:{aRows:5,bRows:5,aTag:5,bTag:5,mixed:false},addSide:7,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2",palette:0,
+  mode:"recommend",matchMode:2,selected:new Set([16,20]),selA:new Set([12]),selB:new Set([16,20]),rec:null,recA:null,recB:null,_recStatus:"ok",loadedA:false,loadedB:false,
+  hbPatS:null,hbPatA:null,hbPatB:null,handBuild:{},handBuildA:{},handBuildB:{}};
 
 // ---------- per-side car model ----------
 // The car has two sides whose row heights can differ: 5+5 (10), 7+5 (12, mixed),
@@ -452,8 +498,9 @@ function init(){
   normalizeSides(); syncSideUI();
   buildLegends();
   solveLayout();
+  setMode("recommend");
 }
-function reconfigure(){ Haptic.selection(); state.carLayout=document.getElementById("carLayout").value; normalizeSides(); syncSideUI(); solveLayout(); }
+function reconfigure(){ Haptic.selection(); state.carLayout=document.getElementById("carLayout").value; state.loadedA=state.loadedB=false; normalizeSides(); syncSideUI(); renderLenPalette(); runRecommend(); solveLayout(); }
 // Keep every line's side tag valid for the current layout (symmetric -> force the
 // single side; mixed -> keep 5/7, default anything else to the layout's default).
 function normalizeSides(){ const S=layoutSides(state.carLayout);
@@ -509,7 +556,7 @@ function applySingle(){
   solveLayout();
 }
 function removeItem(i){ Haptic.light(); state.items.splice(i,1); solveLayout(); }
-function clearAll(){ Haptic.light(); state.items=[]; state.rows=Array.from({length:state.numRows},()=>[]); state.unplaced=[]; renderAll(); }
+function clearAll(){ Haptic.light(); state.items=[]; state.loadedA=state.loadedB=false; state.rows=Array.from({length:state.numRows},()=>[]); state.unplaced=[]; renderAll(); }
 
 // ---------- solve scheduling: debounced + off-main-thread Web Worker ----------
 // The backtracking solver can run up to its internal timeout (a few seconds) on
@@ -568,7 +615,7 @@ function runSolve(){
 }
 function solveLayout(){ if(_solveTimer) clearTimeout(_solveTimer);
   _solveTimer=setTimeout(()=>{ _solveTimer=null; runSolve(); }, 140); }
-function renderAll(){ renderInventory(); renderStats(); render(); renderRowDetail(); renderManifest(); renderPatterns(); }
+function renderAll(){ renderInventory(); renderStats(); render(); renderRowDetail(); renderManifest(); renderPatterns(); buildLegends(); renderLenPalette(); renderTallies(); renderRowPatterns(); }
 
 function renderInventory(){
   let lf=0,pk=0; for(const it of state.items){ lf+=it.length*it.qty; pk+=it.qty; }
@@ -846,12 +893,205 @@ function renderPatterns(){
   document.getElementById("patterns").innerHTML=h;
 }
 
+// ====================== RECOMMEND MODE (the Tally, merged in) ======================
+const MATCH_TEXT={
+  1:"Palette: tallies use only the lengths you check.",
+  2:"Each selected length must appear somewhere in the car.",
+  3:"Each selected appears; other lengths may finish a row."
+};
+const MAX_RECS=15;
+function tallyPatterns(allowed){
+  const types=allowed.slice().sort((a,b)=>b-a); const out=[];
+  (function rec(i,rem,cur){
+    if(rem===0){ out.push(cur.slice()); return; }
+    if(i>=types.length) return;
+    const t=types[i];
+    for(let n=Math.floor(rem/t); n>=0; n--){ const nc=cur.slice(); for(let k=0;k<n;k++) nc.push(t); rec(i+1,rem-t*n,nc); }
+  })(0,TARGET,[]);
+  return out.map(arr=>{ const c={}; LENGTHS.forEach(L=>c[L]=0); arr.forEach(x=>c[x]++); return c; });
+}
+function rowLabelC(c){ const p=[]; LENGTHS.forEach(L=>{ if(c[L]>0) p.push(c[L]+"×"+L+"'"); }); return p.join(", "); }
+function pcsOf(c){ let s=0; LENGTHS.forEach(L=>s+=c[L]); return s; }
+function ftOf(c){ let s=0; LENGTHS.forEach(L=>s+=c[L]*L); return s; }
+function carCovers(a,b,sel,mode){ if(mode===1) return true; for(const L of sel){ if((a[L]||0)===0 && (b[L]||0)===0) return false; } return true; }
+function makeRec(label,counts,carRows){ const ft=ftOf(counts); return {label,counts,pcs:pcsOf(counts),ft,ok:ft===carRows*TARGET}; }
+function recommendForRows(selSet,rows,mode){
+  const sel=[...selSet].sort((a,b)=>a-b);
+  if(sel.length===0) return {recs:[],patterns:[]};
+  const allowed=(mode===3)?LENGTHS.slice():sel.slice();
+  const patterns=tallyPatterns(allowed);
+  if(patterns.length===0) return {recs:[],patterns:[]};
+  const selSet2=new Set(sel), recs=[];
+  for(const p of patterns){ if(recs.length>=MAX_RECS) break;
+    if(carCovers(p,p,selSet2,mode)){ const counts={}; LENGTHS.forEach(L=>counts[L]=p[L]*rows); recs.push(makeRec("All "+rows+" rows: "+rowLabelC(p),counts,rows)); } }
+  if(mode>=2){ outer:
+    for(let i=0;i<patterns.length;i++){ for(let j=i+1;j<patterns.length;j++){ if(recs.length>=MAX_RECS) break outer;
+      const a=patterns[i],b=patterns[j];
+      if(carCovers(a,b,selSet2,mode)){ let na=Math.floor(rows/2); if(na<1)na=1; const nb=rows-na;
+        const counts={}; LENGTHS.forEach(L=>counts[L]=a[L]*na+b[L]*nb);
+        recs.push(makeRec(na+" rows ("+rowLabelC(a)+") + "+nb+" rows ("+rowLabelC(b)+")",counts,rows)); } } } }
+  return {recs,patterns};
+}
+function setRecStatus(kind,msg){ const s=document.getElementById("recStatus"); state._recStatus=kind; if(!s) return; s.className="alert "+(kind==="ok"?"ok":"warn"); s.textContent=msg; }
+function runRecommend(){
+  const mm=document.getElementById("matchMode"); if(!mm) return;
+  const mode=+mm.value, S=layoutSides(state.carLayout);
+  state.handBuild={}; state.handBuildA={}; state.handBuildB={};   // pattern set changed -> reset hand-build
+  if(S.mixed){
+    const A=recommendForRows(state.selA,S.aRows,mode), B=recommendForRows(state.selB,S.bRows,mode);
+    state.recA=A.recs; state.recB=B.recs; state.rec=null;
+    state.hbPatA=A.patterns; state.hbPatB=B.patterns; state.hbPatS=null;
+    const okA=state.recA.length>0, okB=state.recB.length>0;
+    if(okA&&okB) setRecStatus("ok",state.recA.length+" tally(ies) for the 7‑row side · "+state.recB.length+" for the 5‑row side.");
+    else setRecStatus("warn","7‑row: "+(okA?state.recA.length+" found":"none yet")+" · 5‑row: "+(okB?state.recB.length+" found":"none yet")+".");
+  } else {
+    const total=S.aRows+S.bRows, R=recommendForRows(state.selected,total,mode);
+    state.rec=R.recs; state.recA=state.recB=null;
+    state.hbPatS=R.patterns; state.hbPatA=state.hbPatB=null;
+    if(state.selected.size===0) setRecStatus("warn","Check at least one length, then Recommend.");
+    else if(state.rec.length===0) setRecStatus("warn","No single/two‑pattern car covers those lengths — try Palette mode.");
+    else setRecStatus("ok",state.rec.length+" full‑car tally(ies) for a "+(total*TARGET)+"‑ft car.");
+  }
+  renderTallies(); renderRowPatterns();
+}
+function recommendTap(){ runRecommend(); if(state._recStatus==="ok") Haptic.success(); else Haptic.warning(); }
+function onMatchModeChange(){ Haptic.selection(); const h=document.getElementById("modeHint"); if(state.mode==="recommend"&&h) h.textContent=MATCH_TEXT[+document.getElementById("matchMode").value]; runRecommend(); }
+
+function lenPaletteHTML(selSet,side,title){
+  const rows=LENGTHS.map(L=>{ const on=selSet.has(L)?"checked":"";
+    return `<label class="prow"><input type="checkbox" ${on} onchange="toggleLen(${L},this.checked,'${side}')"><span class="lchip" style="background:${lenFill(L)};color:${lenText(L)}">${L}'</span><span class="pname">${L} ft</span></label>`; }).join("");
+  return `<div class="sec">${title}</div><div class="palette">${rows}</div>`;
+}
+function renderLenPalette(){
+  const wrap=document.getElementById("lenPaletteWrap"); if(!wrap) return;
+  if(layoutSides(state.carLayout).mixed)
+    wrap.innerHTML=lenPaletteHTML(state.selA,"A","7‑row side — lengths")+lenPaletteHTML(state.selB,"B","5‑row side — lengths");
+  else
+    wrap.innerHTML=lenPaletteHTML(state.selected,"S","Length Palette");
+}
+function toggleLen(L,on,side){ Haptic.selection();
+  const set=side==="A"?state.selA:side==="B"?state.selB:state.selected;
+  if(on) set.add(L); else set.delete(L);
+  runRecommend();
+}
+
+function lenHeadCells(){ return LENGTHS.map(L=>`<th style="background:${lenFill(L)};color:${lenText(L)}">${L}'</th>`).join(""); }
+function lenCell(v,L){ return `<td style="${v?`background:${lenFill(L)};color:${lenText(L)};font-weight:700`:""}">${v||""}</td>`; }
+function recsTable(recs,title,note,side){
+  const loadLbl=side==="S"?"into car":(side==="A"?"7‑row side":"5‑row side");
+  if(!recs||recs.length===0) return `<div class="secttitle">${title}</div><div class="muted">No tallies yet — pick lengths and click <b>Recommend Tallies</b>.</div>`;
+  let h=`<div class="secttitle">${title}${note?` <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">(${note})</span>`:""}</div>`;
+  h+=`<table class="t"><thead><tr><th>#</th><th style="text-align:left">Tally</th>${lenHeadCells()}<th>Pcs</th><th>Ft</th><th></th></tr></thead><tbody>`;
+  recs.forEach((r,i)=>{ h+=`<tr><td>${i+1}</td><td style="text-align:left">${r.label}</td>`;
+    LENGTHS.forEach(L=>h+=lenCell(r.counts[L],L));
+    h+=`<td>${r.pcs}</td><td>${r.ft}</td><td><button class="btn" style="padding:3px 9px;white-space:nowrap" onclick="loadTally('${side}',${i})">Load ${loadLbl} →</button></td></tr>`; });
+  return h+`</tbody></table>`;
+}
+function renderTallies(){
+  const box=document.getElementById("talliesBox"); if(!box) return;
+  const S=layoutSides(state.carLayout);
+  if(S.mixed){
+    box.innerHTML=recsTable(state.recA||[],"7‑row side — recommended tallies (504 ft)","click Load to fill this side","A")
+      +`<div style="height:14px"></div>`
+      +recsTable(state.recB||[],"5‑row side — recommended tallies (360 ft)","","B");
+  } else {
+    box.innerHTML=recsTable(state.rec||[],"Recommended full‑car tallies","each fills the whole car — click Load into car","S");
+  }
+}
+
+// ----- the handoff: turn a recommended tally into inventory and lay it out -----
+function tallyToItems(counts,sideTag){ const items=[];
+  LENGTHS.forEach(L=>{ if(counts[L]>0) items.push({product:state.singleProduct,length:L,grade:state.singleGrade,qty:counts[L],side:sideTag}); });
+  return items; }
+function loadTally(side,idx){ Haptic.success();
+  const S=layoutSides(state.carLayout);
+  if(side==="S"){ const r=(state.rec||[])[idx]; if(!r) return; state.items=tallyToItems(r.counts,S.aTag); }
+  else if(side==="A"){ const r=(state.recA||[])[idx]; if(!r) return; state.items=state.items.filter(it=>(it.side||S.aTag)!==S.aTag).concat(tallyToItems(r.counts,S.aTag)); state.loadedA=true; }
+  else if(side==="B"){ const r=(state.recB||[])[idx]; if(!r) return; state.items=state.items.filter(it=>(it.side||S.aTag)!==S.bTag).concat(tallyToItems(r.counts,S.bTag)); state.loadedB=true; }
+  // compound car: stay on the Tally tab until you've picked a tally for BOTH sides this session
+  if(!S.mixed || (state.loadedA && state.loadedB)) setMode("build");
+  solveLayout();
+}
+
+// ----- Row Patterns: hand-build a custom tally from 72-ft row patterns, then load it -----
+function hbCtx(key){
+  const S=layoutSides(state.carLayout);
+  if(key==="A") return {pats:state.hbPatA||[], map:state.handBuildA, target:S.aRows};
+  if(key==="B") return {pats:state.hbPatB||[], map:state.handBuildB, target:S.bRows};
+  return {pats:state.hbPatS||[], map:state.handBuild, target:S.aRows+S.bRows};
+}
+function hbGridHTML(key,title){
+  const {pats,map,target}=hbCtx(key);
+  if(!pats||pats.length===0) return `<div class="secttitle">${title}</div><div class="muted">Pick lengths in the palette, then build rows here.</div>`;
+  let h=`<div class="secttitle">${title} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">(set how many rows of each 72‑ft pattern — aim for ${target} rows)</span></div>`;
+  h+=`<table class="t"><thead><tr><th>#</th><th style="text-align:left">Row = 72 ft</th>${lenHeadCells()}<th>Rows to use</th></tr></thead><tbody>`;
+  pats.forEach((c,i)=>{
+    h+=`<tr><td>${i+1}</td><td style="text-align:left" class="rowlbl">${rowLabelC(c)}</td>`;
+    LENGTHS.forEach(L=>h+=lenCell(c[L],L));
+    h+=`<td><input class="rinput" type="number" min="0" value="${map[i]||""}" oninput="hbSetRows('${key}',${i},this.value)"></td></tr>`;
+  });
+  h+=`<tr class="totrow"><td></td><td style="text-align:left" class="rowlbl">YOUR HAND‑BUILT TALLY</td>`;
+  LENGTHS.forEach(L=>h+=`<td id="tot-${key}-${L}"></td>`);
+  h+=`<td id="tot-${key}-rows">0 rows</td></tr>`;
+  return h+`</tbody></table>`;
+}
+function renderRowPatterns(){
+  const box=document.getElementById("rowPatBox"); if(!box) return;
+  const S=layoutSides(state.carLayout);
+  const btn=`<div style="margin-top:4px"><button class="btn primary" onclick="loadHandBuild()">⬇ Load hand‑built car into the Loader</button></div>`;
+  if(S.mixed){
+    box.innerHTML=hbGridHTML("A","🟩 7‑row side — Row Patterns")+`<div style="height:14px"></div>`+hbGridHTML("B","🟦 5‑row side — Row Patterns")+btn;
+    hbUpdateTotal("A"); hbUpdateTotal("B");
+  } else {
+    box.innerHTML=hbGridHTML("S","Valid 72‑ft Row Patterns")+btn;
+    hbUpdateTotal("S");
+  }
+}
+function hbSetRows(key,idx,val){ Haptic.selection();
+  const map=hbCtx(key).map, n=parseInt(val,10);
+  if(!val||isNaN(n)||n<=0) delete map[idx]; else map[idx]=n;
+  hbUpdateTotal(key);
+}
+function hbUpdateTotal(key){
+  const {pats,map,target}=hbCtx(key);
+  const tot={}; LENGTHS.forEach(L=>tot[L]=0); let rows=0;
+  pats.forEach((c,i)=>{ const n=+map[i]||0; if(n>0){ rows+=n; LENGTHS.forEach(L=>tot[L]+=c[L]*n); } });
+  LENGTHS.forEach(L=>{ const el=document.getElementById("tot-"+key+"-"+L); if(el) el.textContent=tot[L]||""; });
+  const r=document.getElementById("tot-"+key+"-rows");
+  if(r){ r.textContent=rows+" / "+target+" rows"+(rows===target?"  ✓":""); r.style.color=(rows===target)?"var(--green2)":""; }
+}
+function hbTotals(key){
+  const {pats,map}=hbCtx(key), tot={}; LENGTHS.forEach(L=>tot[L]=0);
+  pats.forEach((c,i)=>{ const n=+map[i]||0; if(n>0) LENGTHS.forEach(L=>tot[L]+=c[L]*n); });
+  return tot;
+}
+function loadHandBuild(){ Haptic.success();
+  const S=layoutSides(state.carLayout);
+  if(S.mixed) state.items=tallyToItems(hbTotals("A"),S.aTag).concat(tallyToItems(hbTotals("B"),S.bTag));
+  else state.items=tallyToItems(hbTotals("S"),S.aTag);
+  state.loadedA=state.loadedB=true;
+  setMode("build"); solveLayout();
+}
+
+// ----- mode switch (Recommend | Build) -----
+function setMode(m){ Haptic.selection(); state.mode=m;
+  document.getElementById("recommendPanel").style.display=(m==="recommend")?"":"none";
+  document.getElementById("buildPanel").style.display=(m==="build")?"":"none";
+  document.getElementById("modeRecommend").classList.toggle("active",m==="recommend");
+  document.getElementById("modeBuild").classList.toggle("active",m==="build");
+  const tb=document.getElementById("tab-tallies-btn"); if(tb) tb.style.display=(m==="recommend")?"":"none";
+  const rp=document.getElementById("tab-rowpat-btn"); if(rp) rp.style.display=(m==="recommend")?"":"none";
+  const h=document.getElementById("modeHint");
+  if(m==="recommend"){ if(h) h.textContent=MATCH_TEXT[+document.getElementById("matchMode").value]; renderLenPalette(); runRecommend(); switchTab("tallies"); }
+  else { if(h) h.textContent="Add packs to your inventory; the car re‑solves as you go."; switchTab("visual"); }
+}
+
 // ---------- tabs / boot ----------
 function switchTab(t){
   Haptic.selection();
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
   document.querySelectorAll(".tc").forEach(x=>x.classList.remove("active"));
-  document.querySelectorAll(".tab")[["visual","rows","manifest","patterns"].indexOf(t)].classList.add("active");
+  document.querySelectorAll(".tab")[["tallies","rowpat","visual","rows","manifest","patterns"].indexOf(t)].classList.add("active");
   document.getElementById("tab-"+t).classList.add("active");
   state.tab=t; if(t==="visual") zoomFit();
 }

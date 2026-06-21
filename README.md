@@ -349,7 +349,10 @@ The apps use a soft **pastel / muted ("Sorbet")** palette — light fills with d
 
 ## License
 
-Copyright (c) 2026 Ken Paine
+Copyright 2026 Ken Paine
 
-This project is licensed under the **GNU General Public License v3.0** — see the
-[LICENSE](LICENSE) file for the full text.
+Free for personal and non-commercial use under the
+**[PolyForm Noncommercial License 1.0.0](LICENSE)**.
+
+Commercial or business use requires a separate license —
+contact [kenthepaine@gmail.com](mailto:kenthepaine@gmail.com).
