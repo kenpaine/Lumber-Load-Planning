@@ -220,7 +220,7 @@ function lenFill(L){ return SCHEMES[state.palette].m[L]; }
 function lenText(L){ return state.palette===0?INK:bestText(lenFill(L)); }
 function populatePalettes(){ const s=document.getElementById("paletteSel");
   s.innerHTML=SCHEMES.map((p,i)=>`<option value="${i}">${p.name}</option>`).join(""); s.value=String(state.palette); }
-function setPalette(v){ Haptic.selection(); state.palette=+v; renderPalette(); renderLegend(); render(); }
+function setPalette(v){ Haptic.selection(); state.palette=+v; try{ localStorage.setItem("cb-palette",String(state.palette)); }catch(e){} renderPalette(); renderLegend(); render(); }
 
 const TARGET=72, MAX_RECS=15;
 const MODE_TEXT={
@@ -504,8 +504,8 @@ function applyTheme(t){
   document.documentElement.setAttribute("data-theme",state.theme);
   const b=document.getElementById("themeBtn"); if(b) b.textContent=(state.theme==="light")?"☀ Light":"🌙 Dark";
 }
-function initTheme(){ let s="dark"; try{ s=localStorage.getItem("ctr-theme")||"dark"; }catch(e){} applyTheme(s); }
-function toggleTheme(){ Haptic.selection(); applyTheme(state.theme==="light"?"dark":"light"); try{ localStorage.setItem("ctr-theme",state.theme); }catch(e){} }
+function initTheme(){ let s="dark"; try{ s=localStorage.getItem("cb-theme")||localStorage.getItem("ctr-theme")||"dark"; }catch(e){} applyTheme(s); }
+function toggleTheme(){ Haptic.selection(); applyTheme(state.theme==="light"?"dark":"light"); try{ localStorage.setItem("cb-theme",state.theme); }catch(e){} }
 
 // Click any tallies/pattern row to highlight it; it stays lit until another row is clicked.
 function rowHighlight(ev){
@@ -517,6 +517,12 @@ function rowHighlight(ev){
   Haptic.selection();
 }
 
+// Shared theme + colour scheme: load the saved palette, and live-sync to any other open page/tab/iframe.
+try{ const p=parseInt(localStorage.getItem("cb-palette"),10); if(p>=0 && p<SCHEMES.length) state.palette=p; }catch(e){}
+window.addEventListener("storage",e=>{
+  if(e.key==="cb-theme"){ applyTheme(e.newValue||"dark"); render(); }
+  else if(e.key==="cb-palette"){ const v=parseInt(e.newValue,10); if(v>=0 && v<SCHEMES.length){ state.palette=v; populatePalettes(); renderPalette(); renderLegend(); render(); } }
+});
 window.addEventListener("load",()=>{
   initTheme(); populatePalettes(); renderPalette(); renderLegend(); renderHelp();
   document.getElementById("modeHint").textContent=MODE_TEXT[+document.getElementById("mode").value];
