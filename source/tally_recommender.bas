@@ -427,9 +427,12 @@ Private Function WriteGrid(ws2 As Worksheet, ByVal startRow As Long, title As St
     ' target-aware total line (e.g. "5 / 7 rows" + " OK" when it matches)
     Dim br As Long: br = lastPat + 1
     ws2.Cells(br, 2).Value = "YOUR HAND-BUILT TALLY (set 'Rows to use' above):"
+    Dim rng As String
     For i = 0 To 6
+        rng = ColL(3 + i) & firstPat & ":" & ColL(3 + i) & lastPat & ",$J$" & firstPat & ":$J$" & lastPat
+        ' blank (not 0 or #####) for unused lengths, matching the web app's hand-build total
         ws2.Cells(br, 3 + i).Formula = _
-            "=SUMPRODUCT(" & ColL(3 + i) & firstPat & ":" & ColL(3 + i) & lastPat & ",$J$" & firstPat & ":$J$" & lastPat & ")"
+            "=IFERROR(IF(SUMPRODUCT(" & rng & ")=0,"""",SUMPRODUCT(" & rng & ")),"""")"
     Next i
     ws2.Cells(br, 10).Formula = _
         "=SUM($J$" & firstPat & ":$J$" & lastPat & ")&"" / " & target & " rows""&IF(SUM($J$" & firstPat & ":$J$" & lastPat & ")=" & target & ","" OK"","""")"
