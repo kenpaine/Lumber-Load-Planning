@@ -380,7 +380,7 @@ function populatePalettes(){ const s=document.getElementById("paletteSelP"); if(
 function setPalette(v){ Haptic.selection(); state.palette=+v; const s=document.getElementById("paletteSelP"); if(s) s.value=String(state.palette); renderAll(); }
 
 let state={numRows:10,carLayout:"5+5",split:{aRows:5,bRows:5,aTag:5,bTag:5,mixed:false},addSide:7,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2",palette:0,
-  mode:"recommend",matchMode:2,selected:new Set([16,20]),selA:new Set([12]),selB:new Set([16,20]),rec:null,recA:null,recB:null,_recStatus:"ok"};
+  mode:"recommend",matchMode:2,selected:new Set([16,20]),selA:new Set([12]),selB:new Set([16,20]),rec:null,recA:null,recB:null,_recStatus:"ok",loadedA:false,loadedB:false};
 
 // ---------- per-side car model ----------
 // The car has two sides whose row heights can differ: 5+5 (10), 7+5 (12, mixed),
@@ -494,7 +494,7 @@ function init(){
   solveLayout();
   setMode("recommend");
 }
-function reconfigure(){ Haptic.selection(); state.carLayout=document.getElementById("carLayout").value; normalizeSides(); syncSideUI(); renderLenPalette(); runRecommend(); solveLayout(); }
+function reconfigure(){ Haptic.selection(); state.carLayout=document.getElementById("carLayout").value; state.loadedA=state.loadedB=false; normalizeSides(); syncSideUI(); renderLenPalette(); runRecommend(); solveLayout(); }
 // Keep every line's side tag valid for the current layout (symmetric -> force the
 // single side; mixed -> keep 5/7, default anything else to the layout's default).
 function normalizeSides(){ const S=layoutSides(state.carLayout);
@@ -550,7 +550,7 @@ function applySingle(){
   solveLayout();
 }
 function removeItem(i){ Haptic.light(); state.items.splice(i,1); solveLayout(); }
-function clearAll(){ Haptic.light(); state.items=[]; state.rows=Array.from({length:state.numRows},()=>[]); state.unplaced=[]; renderAll(); }
+function clearAll(){ Haptic.light(); state.items=[]; state.loadedA=state.loadedB=false; state.rows=Array.from({length:state.numRows},()=>[]); state.unplaced=[]; renderAll(); }
 
 // ---------- solve scheduling: debounced + off-main-thread Web Worker ----------
 // The backtracking solver can run up to its internal timeout (a few seconds) on
@@ -998,9 +998,11 @@ function tallyToItems(counts,sideTag){ const items=[];
 function loadTally(side,idx){ Haptic.success();
   const S=layoutSides(state.carLayout);
   if(side==="S"){ const r=(state.rec||[])[idx]; if(!r) return; state.items=tallyToItems(r.counts,S.aTag); }
-  else if(side==="A"){ const r=(state.recA||[])[idx]; if(!r) return; state.items=state.items.filter(it=>(it.side||S.aTag)!==S.aTag).concat(tallyToItems(r.counts,S.aTag)); }
-  else if(side==="B"){ const r=(state.recB||[])[idx]; if(!r) return; state.items=state.items.filter(it=>(it.side||S.aTag)!==S.bTag).concat(tallyToItems(r.counts,S.bTag)); }
-  setMode("build"); solveLayout();
+  else if(side==="A"){ const r=(state.recA||[])[idx]; if(!r) return; state.items=state.items.filter(it=>(it.side||S.aTag)!==S.aTag).concat(tallyToItems(r.counts,S.aTag)); state.loadedA=true; }
+  else if(side==="B"){ const r=(state.recB||[])[idx]; if(!r) return; state.items=state.items.filter(it=>(it.side||S.aTag)!==S.bTag).concat(tallyToItems(r.counts,S.bTag)); state.loadedB=true; }
+  // compound car: stay on the Tally tab until you've picked a tally for BOTH sides this session
+  if(!S.mixed || (state.loadedA && state.loadedB)) setMode("build");
+  solveLayout();
 }
 
 // ----- mode switch (Recommend | Build) -----
