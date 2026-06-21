@@ -382,7 +382,7 @@ function packBorder(c){ return state.palette===0?PCOLORS[c.product]:"#000000"; }
 function packText(c){ return state.palette===0?GFONT[c.grade]:bestText(lenFill(c.length)); }
 function populatePalettes(){ const s=document.getElementById("paletteSelP"); if(!s) return;
   s.innerHTML=SCHEMES.map((p,i)=>`<option value="${i}">${p.name}</option>`).join(""); s.value=String(state.palette); }
-function setPalette(v){ Haptic.selection(); state.palette=+v; const s=document.getElementById("paletteSelP"); if(s) s.value=String(state.palette); renderAll(); }
+function setPalette(v){ Haptic.selection(); state.palette=+v; try{ localStorage.setItem("cb-palette",String(state.palette)); }catch(e){} const s=document.getElementById("paletteSelP"); if(s) s.value=String(state.palette); renderAll(); }
 
 let state={numRows:10,carLayout:"5+5",split:{aRows:5,bRows:5,aTag:5,bTag:5,mixed:false},addSide:7,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2",palette:0,
   mode:"recommend",matchMode:2,selected:new Set([16,20]),selA:new Set([12]),selB:new Set([16,20]),rec:null,recA:null,recB:null,_recStatus:"ok",loadedA:false,loadedB:false,
@@ -1103,13 +1103,13 @@ function applyTheme(t){
   if(b) b.textContent=(state.theme==="light")?"☀ Light":"🌙 Dark";
 }
 function initTheme(){
-  let s="dark"; try{ s=localStorage.getItem("clp-theme")||"dark"; }catch(e){}
+  let s="dark"; try{ s=localStorage.getItem("cb-theme")||localStorage.getItem("clp-theme")||"dark"; }catch(e){}
   applyTheme(s);
 }
 function toggleTheme(){
   Haptic.selection();
   applyTheme(state.theme==="light"?"dark":"light");
-  try{ localStorage.setItem("clp-theme",state.theme); }catch(e){}
+  try{ localStorage.setItem("cb-theme",state.theme); }catch(e){}
   render();
 }
 
@@ -1122,6 +1122,12 @@ function rowHighlight(ev){
   tr.classList.add("activerow");
   Haptic.selection();
 }
+// Shared theme + colour scheme: load the saved palette, and live-sync to any other open page/tab/iframe.
+try{ const p=parseInt(localStorage.getItem("cb-palette"),10); if(p>=0 && p<SCHEMES.length) state.palette=p; }catch(e){}
+window.addEventListener("storage",e=>{
+  if(e.key==="cb-theme"){ applyTheme(e.newValue||"dark"); render(); }
+  else if(e.key==="cb-palette"){ const v=parseInt(e.newValue,10); if(v>=0 && v<SCHEMES.length){ state.palette=v; const s=document.getElementById("paletteSelP"); if(s) s.value=String(v); renderAll(); } }
+});
 window.addEventListener("load",()=>{ initTheme(); init(); zoomFit(); populatePalettes(); document.addEventListener("click",rowHighlight); });
 window.addEventListener("resize",()=>{ if(state.tab==="visual") zoomFit(); });
 </script>
