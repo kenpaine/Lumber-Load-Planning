@@ -23,8 +23,8 @@ XL_MACRO = 52  # xlOpenXMLWorkbookMacroEnabled
 TRANSFER_VBA = r'''Option Explicit
 
 ' ===== Tally -> Loader transfer (the Excel twin of the web "Load into car") =====
-Private Const TALLY_SHEET As String = "Recommender"
-Private Const LOADER_SHEET As String = "Planner"
+Private Const TALLY_SHEET As String = "Tally"
+Private Const LOADER_SHEET As String = "Loader"
 Private Const CAR_CELL As String = "B5"       ' Tally car-layout cell
 Private Const RECA_TOP As Long = 23           ' table A (symmetric, or 7-row side) rows 23..33
 Private Const RECA_BOT As Long = 33
@@ -136,6 +136,17 @@ def add_module(wb, name, code):
     comp.CodeModule.AddFromString(code)
 
 
+def replace_in_module(wb, name, find, repl):
+    """In-place text replace inside an existing standard module's code."""
+    cm = wb.VBProject.VBComponents(name).CodeModule
+    n = cm.CountOfLines
+    code = cm.Lines(1, n) if n else ""
+    new = code.replace(find, repl)
+    if new != code:
+        cm.DeleteLines(1, n)
+        cm.AddFromString(new)
+
+
 def main():
     shutil.copyfile(PLANNER, OUT)
     with open(BAS, "r", encoding="utf-8") as f:
@@ -152,11 +163,21 @@ def main():
         src.Sheets("Recommender").Copy(Before=wb.Sheets(1))
         src.Close(SaveChanges=False)
 
+        # Renames: Recommender -> Tally, Planner -> Loader. Renaming a sheet auto-updates
+        # all *formula* references; VBA *string literals* are updated by hand here.
+        wb.Worksheets("Recommender").Name = "Tally"
+        wb.Worksheets("Planner").Name = "Loader"
+        replace_in_module(wb, "CenterbeamSolver", '"Planner"', '"Loader"')  # 5x Sheets("Planner")
+        replace_in_module(wb, "ManifestDiagram", '"Planner"', '"Loader"')   # 1x Worksheets("Planner")
+        tally_code = tally_code.replace(
+            'Const REC_SHEET As String = "Recommender"',
+            'Const REC_SHEET As String = "Tally"')
+
         add_module(wb, "TallyRecommender", tally_code)
         add_module(wb, "LoaderTransfer", TRANSFER_VBA)
 
         # "Send tally to Loader" button on the Tally sheet, right of the tally table
-        rec = wb.Worksheets("Recommender")
+        rec = wb.Worksheets("Tally")
         anchor = rec.Range("N21")
         btn = rec.Buttons().Add(anchor.Left, anchor.Top, 165, 34)
         btn.Name = "btnSendToLoader"
