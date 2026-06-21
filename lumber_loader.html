@@ -1017,12 +1017,15 @@ function loadTally(side,idx){ Haptic.success();
 
 // ----- Row Patterns: hand-build a custom tally from 72-ft row patterns, then load it -----
 function manualMap(key){ return key==="A"?state.manualA : key==="B"?state.manualB : state.manualS; }
-// Lengths in play for this side's patterns = palette selection + any length given a manual count.
+// Lengths in play for this side. Once you type ANY manual count, the manual entry
+// drives it: only the lengths you've entered are allowed (every pattern/tally needing
+// a length you didn't enter is eliminated). With no manual entry, fall back to the palette.
 function hbAllowed(key){
+  const man = manualMap(key);
+  const manLens = LENGTHS.filter(L=>(man[L]||0)>0);
+  if(manLens.length) return manLens;
   const sel = key==="A"?state.selA : key==="B"?state.selB : state.selected;
-  const man = manualMap(key), set=new Set(sel);
-  LENGTHS.forEach(L=>{ if((man[L]||0)>0) set.add(L); });
-  return [...set].sort((a,b)=>a-b);
+  return [...sel].sort((a,b)=>a-b);
 }
 function hbCtx(key){
   const S=layoutSides(state.carLayout), allowed=hbAllowed(key);
@@ -1047,17 +1050,59 @@ function onManualChange(key,L,val){ Haptic.selection();
 }
 function pattblHTML(key){
   const {pats,map}=hbCtx(key);
-  if(!pats||pats.length===0) return `<div class="muted">Enter lengths above (or pick them in the palette) to see the 72‑ft row patterns.</div>`;
-  let h=`<table class="t"><thead><tr><th>#</th><th style="text-align:left">Row = 72 ft</th>${lenHeadCells()}<th>Rows to use</th></tr></thead><tbody>`;
-  pats.forEach((c,i)=>{
-    h+=`<tr><td>${i+1}</td><td style="text-align:left" class="rowlbl">${rowLabelC(c)}</td>`;
-    LENGTHS.forEach(L=>h+=lenCell(c[L],L));
-    h+=`<td><input class="rinput" type="number" min="0" value="${map[rowLabelC(c)]||""}" oninput="hbSetRows('${key}',${i},this.value)"></td></tr>`;
+  let h="";
+  if(!pats||pats.length===0){
+    h=`<div class="muted">Enter (or select) at least the lengths that can form a 72‑ft row.</div>`;
+  } else {
+    h=`<table class="t"><thead><tr><th>#</th><th style="text-align:left">Row = 72 ft</th>${lenHeadCells()}<th>Rows to use</th></tr></thead><tbody>`;
+    pats.forEach((c,i)=>{
+      h+=`<tr><td>${i+1}</td><td style="text-align:left" class="rowlbl">${rowLabelC(c)}</td>`;
+      LENGTHS.forEach(L=>h+=lenCell(c[L],L));
+      h+=`<td><input class="rinput" type="number" min="0" value="${map[rowLabelC(c)]||""}" oninput="hbSetRows('${key}',${i},this.value)"></td></tr>`;
+    });
+    h+=`<tr class="totrow"><td></td><td style="text-align:left" class="rowlbl">YOUR HAND‑BUILT TALLY</td>`;
+    LENGTHS.forEach(L=>h+=`<td id="tot-${key}-${L}"></td>`);
+    h+=`<td id="tot-${key}-rows"></td></tr></tbody></table>`;
+  }
+  return h+compTalliesHTML(key);
+}
+// Complementary tallies = recommended full-side completions built ONLY from the entered
+// lengths that can accommodate the manual pieces; the cells show the COMPLEMENT (what to add).
+function compTallies(key){
+  const {target,man}=hbCtx(key);
+  const lens=hbAllowed(key);
+  if(!lens.length) return [];
+  const out=[];
+  recommendForRows(new Set(lens), target, 2).recs.forEach(r=>{
+    if(LENGTHS.every(L=>(r.counts[L]||0)>=(man[L]||0))){
+      const comp={}; let add=0; LENGTHS.forEach(L=>{ comp[L]=(r.counts[L]||0)-(man[L]||0); add+=comp[L]; });
+      out.push({full:r.counts, comp, add, label:r.label});
+    }
   });
-  h+=`<tr class="totrow"><td></td><td style="text-align:left" class="rowlbl">YOUR HAND‑BUILT TALLY</td>`;
-  LENGTHS.forEach(L=>h+=`<td id="tot-${key}-${L}"></td>`);
-  h+=`<td id="tot-${key}-rows"></td></tr>`;
+  return out;
+}
+function compTalliesHTML(key){
+  const man=manualMap(key);
+  if(!LENGTHS.some(L=>(man[L]||0)>0)) return "";   // only after something is manually entered
+  const comps=compTallies(key);
+  let h=`<div class="secttitle" style="margin-top:14px">Complementary tallies — what to add to finish this side</div>`;
+  if(!comps.length) return h+`<div class="muted">No completion fits these pieces — add another length, or reduce a count.</div>`;
+  h+=`<table class="t"><thead><tr><th>#</th><th style="text-align:left">Completion</th>${lenHeadCells()}<th>Add pcs</th><th></th></tr></thead><tbody>`;
+  comps.forEach((c,i)=>{
+    h+=`<tr><td>${i+1}</td><td style="text-align:left">${c.label}</td>`;
+    LENGTHS.forEach(L=>h+=lenCell(c.comp[L],L));
+    h+=`<td>${c.add}</td><td><button class="btn" style="padding:3px 9px;white-space:nowrap" onclick="loadComp('${key}',${i})">Load full car →</button></td></tr>`;
+  });
   return h+`</tbody></table>`;
+}
+function loadComp(key,idx){ Haptic.success();
+  const c=compTallies(key)[idx]; if(!c) return;
+  const S=layoutSides(state.carLayout);
+  if(key==="S"){ state.items=tallyToItems(c.full,S.aTag); }
+  else if(key==="A"){ state.items=state.items.filter(it=>(it.side||S.aTag)!==S.aTag).concat(tallyToItems(c.full,S.aTag)); state.loadedA=true; }
+  else if(key==="B"){ state.items=state.items.filter(it=>(it.side||S.aTag)!==S.bTag).concat(tallyToItems(c.full,S.bTag)); state.loadedB=true; }
+  if(!S.mixed || (state.loadedA && state.loadedB)) setMode("build");
+  solveLayout();
 }
 function renderPattbl(key){
   const box=document.getElementById("pattbl-"+key); if(!box) return;
