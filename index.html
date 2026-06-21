@@ -6,6 +6,7 @@
 <title>Centerbeam Lumber Car Tools</title>
 <style>
   :root{--bg:#1a1f16;--bg2:#222820;--bg3:#2b3126;--border:#3d4a38;--text:#d8e4d2;--text2:#9aaa92;--text3:#6a7864;--green2:#7bbf60;}
+  [data-theme="light"]{--bg:#eaeee4;--bg2:#f5f7f1;--bg3:#ffffff;--border:#d3dccb;--text:#283026;--text2:#566350;--text3:#84907c;--green2:#2f7d1f;}
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:34px 18px}
   .wrap{width:100%;max-width:660px}
@@ -55,5 +56,11 @@
     <a href="https://github.com/kenpaine/Lumber-Load-Planning">Source &amp; docs on GitHub</a>
   </div>
 </div>
+<script>
+  // follow the shared app theme on the launcher too (the apps set "cb-theme")
+  function hubTheme(t){ document.documentElement.setAttribute("data-theme", t==="light"?"light":"dark"); }
+  try{ hubTheme(localStorage.getItem("cb-theme")||"dark"); }catch(e){}
+  window.addEventListener("storage", function(e){ if(e.key==="cb-theme") hubTheme(e.newValue||"dark"); });
+</script>
 </body>
 </html>
