@@ -92,6 +92,14 @@ Click **Enable Content** on open.
 
 ---
 
+## Lumber Loader — iOS app
+
+A native iPhone app (Capacitor 8) that wraps the same combined web app in a native shell — fully offline, with real Taptic Engine haptics. It loads `lumber_loader.html` directly, so it has the identical Tally + Loader modes and the **Load into car →** handoff. See [`app/README.md`](app/README.md) for the Mac‑side build & run steps.
+
+<img src="ios_app_screenshot.png" alt="Lumber Loader iOS app — Loader mode on iPhone (light mode)" width="300">
+
+---
+
 ## What's in this project
 
 | File | What it is |

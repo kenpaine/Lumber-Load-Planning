@@ -9,6 +9,8 @@ The repo-root `lumber_loader.html` is the single source of truth;
 `scripts/sync-www.mjs` mirrors it into `www/index.html` (the bundle's entry document)
 before every build. The app runs fully offline.
 
+<img src="../ios_app_screenshot.png" alt="Lumber Loader iOS app — Loader mode (light mode)" width="300">
+
 **Native haptics:** `lumber_loader.html` calls `@capacitor/haptics` (real Taptic
 Engine) via a small `Haptic` helper that no-ops on the plain web. `cap sync` on the
 Mac registers the plugin natively — no extra steps. Toggles/taps give a selection
