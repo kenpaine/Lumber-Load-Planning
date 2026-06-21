@@ -13,6 +13,11 @@
     --text:#d8e4d2;--text2:#9aaa92;--text3:#6a7864;--green2:#7bbf60;
     --tabbar-h:54px;
   }
+  /* follow the shared app theme (the apps inside the iframes set "cb-theme") */
+  [data-theme="light"]{
+    --bg:#eaeee4;--bg2:#f5f7f1;--bg3:#ffffff;--border:#d3dccb;
+    --text:#283026;--text2:#566350;--text3:#84907c;--green2:#2f7d1f;
+  }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;overflow:hidden;background:var(--bg)}
   body{
@@ -88,6 +93,12 @@
   </nav>
 
 <script>
+  // Mirror the shared app theme onto the tab-bar chrome. The apps live in same-origin
+  // iframes, so toggling theme inside one fires a storage event up here.
+  function shellTheme(t){ document.documentElement.setAttribute("data-theme", t==="light"?"light":"dark"); }
+  try{ shellTheme(localStorage.getItem("cb-theme")||"dark"); }catch(e){}
+  window.addEventListener("storage", function(e){ if(e.key==="cb-theme") shellTheme(e.newValue||"dark"); });
+
   (function(){
     var KEY = "lumber.activeTab";
     var tabs   = Array.prototype.slice.call(document.querySelectorAll(".tab"));
