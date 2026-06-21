@@ -100,7 +100,7 @@ Public Sub RecommendTallies()
     Set ws = ThisWorkbook.Worksheets(REC_SHEET)
     Set ws2 = ThisWorkbook.Worksheets(PAT_SHEET)
     Application.ScreenUpdating = False
-    ws.Range("N1").Value = 0: ws2.Range("N1").Value = 0   ' reset active-row highlight
+    ws.Range("N1").Value = 0: ws.Range("N2").Value = 0: ws2.Range("N1").Value = 0   ' reset active-row highlight (N2 = compound 5-row pick)
 
     Dim L As Variant: L = Lengths()
     Dim aRows As Integer, bRows As Integer, mixed As Boolean
@@ -548,6 +548,6 @@ Public Sub ClearOutputsButton()
     Dim ws2 As Worksheet: Set ws2 = ThisWorkbook.Worksheets(PAT_SHEET)
     ClearRecTables ws
     ClearPatterns ws2
-    ws.Range("N1").Value = 0: ws2.Range("N1").Value = 0   ' reset active-row highlight
+    ws.Range("N1").Value = 0: ws.Range("N2").Value = 0: ws2.Range("N1").Value = 0   ' reset active-row highlight (N2 = compound 5-row pick)
     ws.Range(STATUS_CELL).Value = "Cleared. Choose options and click Recommend Tallies."
 End Sub

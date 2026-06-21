@@ -11,6 +11,7 @@ buttons (the Excel twin of the web app's "Load into car"):
 """
 import os
 import shutil
+import pythoncom
 from win32com.client import DispatchEx
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -100,67 +101,58 @@ Private Sub FinishLoad(ld As Worksheet, ByVal jumpToLoader As Boolean)
     End If
 End Sub
 
-' Does any Loader line carry this side tag (i.e. has that side already been loaded)?
-Private Function SideHasInventory(ld As Worksheet, ByVal sideTag As String) As Boolean
-    Dim row As Long
-    For row = PLI_FIRST To PLI_LAST
-        If CStr(ld.Cells(row, 1).Value) = sideTag And Len(Trim(CStr(ld.Cells(row, 2).Value))) > 0 Then
-            SideHasInventory = True
-            Exit Function
-        End If
-    Next row
-End Function
-
-' ---- Send the recommended tally on the active row of the Tally sheet ----
+' ---- Send recommended tallies to the Loader ----
+' Symmetric car: the active row's tally fills the whole car.
+' Compound (7+5) car: the user picks a row in EACH table -- the 7-row table is
+' tracked in N1, the 5-row table in N2 -- and one Send loads both sides.
 Public Sub SendTallyToLoader()
     Dim t As Worksheet, ld As Worksheet
     Set t = ThisWorkbook.Worksheets(TALLY_SHEET)
     Set ld = ThisWorkbook.Worksheets(LOADER_SHEET)
-
     If ActiveSheet.Name <> TALLY_SHEET Then t.Activate
-    Dim r As Long: r = ActiveCell.Row
-    Dim isA As Boolean, isB As Boolean
-    isA = (r >= RECA_TOP And r <= RECA_BOT)
-    isB = (r >= RECB_TOP And r <= RECB_BOT)
-    If Not (isA Or isB) Then
-        MsgBox "Click a cell in a recommended-tally row first (a numbered row under a TALLIES header), then Send to Loader.", vbExclamation, "Send to Loader"
-        Exit Sub
-    End If
-    If Len(Trim(CStr(t.Cells(r, 2).Value))) = 0 Then
-        MsgBox "That row has no tally on it. Pick a numbered tally row.", vbExclamation, "Send to Loader"
-        Exit Sub
-    End If
-
-    Dim cnt(0 To 6) As Long
-    If Not ReadCounts(t, r, cnt) Then
-        MsgBox "That tally row has no piece counts to load.", vbExclamation, "Send to Loader"
-        Exit Sub
-    End If
 
     Dim carT As String: carT = CarToken()
-    Dim mixed As Boolean: mixed = (carT = "7+5")
-    Dim sideTag As String, keepTag As String
-    If Not mixed Then
-        sideTag = "": keepTag = ""
-    ElseIf isA Then
-        sideTag = "7-row": keepTag = "5-row"
-    Else
-        sideTag = "5-row": keepTag = "7-row"
+
+    If carT <> "7+5" Then
+        ' --- symmetric: send the active row's tally ---
+        Dim r As Long: r = ActiveCell.Row
+        Dim cnt(0 To 6) As Long
+        If Not (r >= RECA_TOP And r <= RECA_BOT) _
+           Or Len(Trim(CStr(t.Cells(r, 2).Value))) = 0 Or Not ReadCounts(t, r, cnt) Then
+            MsgBox "Click a cell in a recommended-tally row first, then Send to Loader.", vbExclamation, "Send to Loader"
+            Exit Sub
+        End If
+        Application.EnableEvents = False
+        On Error GoTo doneSym
+        ld.Range("C5").Value = carT
+        ClearLoaderLines ld, ""
+        WriteCounts ld, cnt, False, ""
+doneSym:
+        FinishLoad ld, True
+        Exit Sub
+    End If
+
+    ' --- compound 7+5: load BOTH tables' picks (N1 = 7-row table, N2 = 5-row table) ---
+    Dim p7 As Long, p5 As Long
+    p7 = CLng(Val(CStr(t.Range("N1").Value)))
+    p5 = CLng(Val(CStr(t.Range("N2").Value)))
+    Dim c7(0 To 6) As Long, c5(0 To 6) As Long
+    Dim has7 As Boolean, has5 As Boolean
+    If p7 >= RECA_TOP And p7 <= RECA_BOT Then has7 = ReadCounts(t, p7, c7)
+    If p5 >= RECB_TOP And p5 <= RECB_BOT Then has5 = ReadCounts(t, p5, c5)
+    If (Not has7) And (Not has5) Then
+        MsgBox "Compound car: click a tally row in the 7-row table AND a row in the 5-row table, then Send to Loader.", vbExclamation, "Send to Loader"
+        Exit Sub
     End If
 
     Application.EnableEvents = False
-    On Error GoTo done
+    On Error GoTo doneMix
     ld.Range("C5").Value = carT
-    ClearLoaderLines ld, keepTag
-    WriteCounts ld, cnt, mixed, sideTag
-    Dim jump As Boolean
-    If Not mixed Then
-        jump = True                            ' symmetric: one send = the whole car
-    Else
-        jump = SideHasInventory(ld, keepTag)   ' compound: jump only once BOTH sides are loaded
-    End If
-done:
-    FinishLoad ld, jump
+    ClearLoaderLines ld, ""              ' both picks together are the whole car
+    If has7 Then WriteCounts ld, c7, True, "7-row"
+    If has5 Then WriteCounts ld, c5, True, "5-row"
+doneMix:
+    FinishLoad ld, (has7 And has5)       ' jump to the Loader once both sides are picked
 End Sub
 
 ' ---- Send the hand-built tally from the Row Patterns tab (the whole car) ----
@@ -210,6 +202,37 @@ done:
     FinishLoad ld, True          ' hand-build is always the whole car
 End Sub
 '''
+
+# Replaces the copied Tally sheet's selection event so each recommended-tally table
+# keeps its OWN highlighted pick (7-row table -> N1, 5-row table -> N2), letting you
+# select a tally from both tables on a compound car. The reactive Worksheet_Change
+# (palette / car-layout edits re-run the recommender) is preserved unchanged.
+TALLY_SHEET_CODE = "\r\n".join([
+    "Private Sub Worksheet_SelectionChange(ByVal Target As Range)",
+    "    Dim rw As Long: rw = Target.Row",
+    "    If rw >= 23 And rw <= 33 And IsNumeric(Me.Cells(rw, 1).Value) And Len(CStr(Me.Cells(rw, 1).Value)) > 0 Then",
+    '        If Me.Range("N1").Value <> rw Then Me.Range("N1").Value = rw',
+    "    ElseIf rw >= 37 And rw <= 47 And IsNumeric(Me.Cells(rw, 1).Value) And Len(CStr(Me.Cells(rw, 1).Value)) > 0 Then",
+    '        If Me.Range("N2").Value <> rw Then Me.Range("N2").Value = rw',
+    "    End If",
+    "    If Target.Cells.Count <> 1 Then Exit Sub",
+    "    If Target.Column < 3 Or Target.Column > 9 Then Exit Sub",
+    "    If Target.Row = 22 Then SortRecsByRange Target.Column, 23, 33",
+    "    If Target.Row = 36 Then SortRecsByRange Target.Column, 37, 47",
+    "End Sub",
+    "Private Sub Worksheet_Change(ByVal Target As Range)",
+    '    If Not Intersect(Target, Me.Range("B8")) Is Nothing Then',
+    "        Application.EnableEvents = False",
+    "        ApplyTallyPalette",
+    "        Application.EnableEvents = True",
+    "        Exit Sub",
+    "    End If",
+    '    If Intersect(Target, Me.Range("B5:B6")) Is Nothing Then Exit Sub',
+    "    Application.EnableEvents = False",
+    "    RecommendTallies",
+    "    Application.EnableEvents = True",
+    "End Sub",
+])
 
 
 def add_module(wb, name, code):
@@ -267,6 +290,22 @@ def main():
 
         add_module(wb, "TallyRecommender", tally_code)
         add_module(wb, "LoaderTransfer", TRANSFER_VBA)
+
+        # Compound-car dual selection: the 7-row table tracks its picked row in N1, the
+        # 5-row table in N2, so a tally can stay selected in BOTH tables at once.
+        tw = wb.Worksheets("Tally")
+        for c in ("N1", "N2"):
+            tw.Range(c).Value = 0
+            tw.Range(c).NumberFormat = ";;;"
+        rb = tw.Range("A37:L47")                                            # 5-row table highlight -> N2
+        rb.FormatConditions.Delete()
+        fcb = rb.FormatConditions.Add(2, pythoncom.Empty, "=ROW()=$N$2")    # 2 = xlExpression
+        fcb.Interior.Color = 15652797                                       # BGR of BDD7EE (light blue)
+        fcb.StopIfTrue = True
+        sm = wb.VBProject.VBComponents(tw.CodeName).CodeModule              # dual-pick SelectionChange
+        if sm.CountOfLines:
+            sm.DeleteLines(1, sm.CountOfLines)
+        sm.AddFromString(TALLY_SHEET_CODE)
 
         # Send-to-Loader buttons: recommended tally (Tally sheet) + hand-built (Row Patterns).
         add_button(wb.Worksheets("Tally"), "N21", 165, 34,
