@@ -222,15 +222,103 @@ TALLY_SHEET_CODE = "\r\n".join([
     "End Sub",
     "Private Sub Worksheet_Change(ByVal Target As Range)",
     '    If Not Intersect(Target, Me.Range("B8")) Is Nothing Then',
-    "        Application.EnableEvents = False",
-    "        ApplyTallyPalette",
-    "        Application.EnableEvents = True",
+    '        ApplyPaletteEverywhere CStr(Me.Range("B8").Value)',
     "        Exit Sub",
     "    End If",
     '    If Intersect(Target, Me.Range("B5:B6")) Is Nothing Then Exit Sub',
     "    Application.EnableEvents = False",
     "    RecommendTallies",
     "    Application.EnableEvents = True",
+    "End Sub",
+])
+
+# One colour scheme everywhere: both pickers (Tally B8 / Manifest N2) call this, which
+# sets both, recolours the Tally + Row Patterns, the Loader grid's length-fill CF rules,
+# and redraws the Manifest. Self-contained (combined workbook only) so the shared .bas
+# files and the standalone Tally/Planner are untouched.
+UNIFIED_PALETTE_VBA = r'''Option Explicit
+
+Private Function UScheme(ByVal pal As Long, ByVal idx As Long) As Long
+    Dim P As Variant
+    P = Array( _
+      Array("BBD4EA", "C2E5C9", "FBE7B2", "E5CDEE", "FAC4BC", "BFEAE0", "DCE7AE"), _
+      Array("E53935", "FB8C00", "FDD835", "43A047", "00ACC1", "1E88E5", "8E24AA"), _
+      Array("EF5350", "FFA726", "FFEE58", "66BB6A", "26C6DA", "42A5F5", "AB47BC"), _
+      Array("4E79A7", "F28E2B", "E15759", "76B7B2", "59A14F", "EDC948", "B07AA1"), _
+      Array("8C6239", "C9A66B", "7D8C4F", "B7410E", "2E5E4E", "D4A017", "5C3A21"), _
+      Array("B71C1C", "E65100", "F9A825", "1B5E20", "00695C", "1A237E", "4A148C"), _
+      Array("D32F2F", "F57C00", "FBC02D", "689F38", "0097A7", "1976D2", "7B1FA2"), _
+      Array("440154", "443983", "31688E", "21918C", "35B779", "90D743", "FDE725"), _
+      Array("5C1A33", "9D2B4A", "C44536", "E8590C", "F0A202", "F4C430", "F7E07A"), _
+      Array("FF1744", "FF9100", "FFEA00", "00E676", "00E5FF", "2979FF", "D500F9"), _
+      Array("1F77B4", "2CA02C", "FF7F0E", "9467BD", "D62728", "17BECF", "8C564B"), _
+      Array("FFFFFF", "EEEEEE", "DDDDDD", "CCCCCC", "BBBBBB", "AAAAAA", "999999"))
+    If pal < 0 Or pal > 11 Then pal = 0
+    Dim h As String: h = P(pal)(idx)
+    UScheme = RGB(CLng("&H" & Mid(h, 1, 2)), CLng("&H" & Mid(h, 3, 2)), CLng("&H" & Mid(h, 5, 2)))
+End Function
+
+Private Function USchemeIndex(ByVal nm As String) As Long
+    Dim names As Variant
+    names = Array("Color (pastel)", "Vivid", "Material", "Tableau", "Earth / lumberyard", _
+        "Jewel tones", "Rainbow (warm to cool)", "Viridis (colour-safe)", "Sunset (warm)", _
+        "Neon", "High contrast", "B & W (print)")
+    Dim i As Long
+    For i = 0 To 11
+        If StrComp(Trim(nm), CStr(names(i)), vbTextCompare) = 0 Then USchemeIndex = i: Exit Function
+    Next i
+    USchemeIndex = 0
+End Function
+
+' Recolour the Loader grid's 7 length-fill conditional-format rules to the scheme.
+Private Sub RecolorLoaderGrid(ld As Worksheet, ByVal pal As Long)
+    Dim lengths As Variant: lengths = Array(8, 10, 12, 14, 16, 18, 20)
+    Dim fcs As Object: Set fcs = ld.Range("B34:J47").FormatConditions
+    Dim i As Long, k As Long, f As String
+    For i = 1 To fcs.Count
+        f = ""
+        On Error Resume Next
+        f = fcs(i).Formula1
+        On Error GoTo 0
+        If Len(f) > 0 Then
+            For k = 0 To 6
+                If InStr(f, "=""" & lengths(k) & """") > 0 Then
+                    On Error Resume Next
+                    fcs(i).Interior.Color = UScheme(pal, k)
+                    On Error GoTo 0
+                    Exit For
+                End If
+            Next k
+        End If
+    Next i
+End Sub
+
+Public Sub ApplyPaletteEverywhere(ByVal schemeName As String)
+    Dim t As Worksheet, mf As Worksheet, ld As Worksheet
+    Set t = ThisWorkbook.Worksheets("Tally")
+    Set mf = ThisWorkbook.Worksheets("Manifest")
+    Set ld = ThisWorkbook.Worksheets("Loader")
+    Dim ev As Boolean: ev = Application.EnableEvents
+    Application.EnableEvents = False
+    On Error Resume Next
+    If CStr(t.Range("B8").Value) <> schemeName Then t.Range("B8").Value = schemeName
+    If CStr(mf.Range("N2").Value) <> schemeName Then mf.Range("N2").Value = schemeName
+    ApplyTallyPalette
+    RecolorLoaderGrid ld, USchemeIndex(schemeName)
+    DrawManifestDiagram
+    On Error GoTo 0
+    Application.EnableEvents = ev
+End Sub
+'''
+
+MANIFEST_SHEET_CODE = "\r\n".join([
+    "Private Sub Worksheet_Activate()",
+    "    On Error Resume Next",
+    "    DrawManifestDiagram",
+    "End Sub",
+    "Private Sub Worksheet_Change(ByVal Target As Range)",
+    '    If Intersect(Target, Me.Range("N2")) Is Nothing Then Exit Sub',
+    '    ApplyPaletteEverywhere CStr(Me.Range("N2").Value)',
     "End Sub",
 ])
 
@@ -290,6 +378,14 @@ def main():
 
         add_module(wb, "TallyRecommender", tally_code)
         add_module(wb, "LoaderTransfer", TRANSFER_VBA)
+        add_module(wb, "UnifiedPalette", UNIFIED_PALETTE_VBA)
+        # One palette everywhere: re-point the Manifest's N2 Change at ApplyPaletteEverywhere
+        # (the Tally B8 Change is already pointed there via TALLY_SHEET_CODE).
+        mfsheet = wb.Worksheets("Manifest")
+        msm = wb.VBProject.VBComponents(mfsheet.CodeName).CodeModule
+        if msm.CountOfLines:
+            msm.DeleteLines(1, msm.CountOfLines)
+        msm.AddFromString(MANIFEST_SHEET_CODE)
 
         # Compound-car dual selection: the 7-row table tracks its picked row in N1, the
         # 5-row table in N2, so a tally can stay selected in BOTH tables at once.
@@ -317,10 +413,10 @@ def main():
         xl.EnableEvents = True
         compiled = True
         try:
-            xl.Run("ApplyTallyPalette")
+            xl.Run("ApplyPaletteEverywhere", "Color (pastel)")
         except Exception as e:
             compiled = False
-            print("  ! ApplyTallyPalette failed:", e)
+            print("  ! ApplyPaletteEverywhere failed:", e)
         xl.EnableEvents = False
 
         wb.Save()
