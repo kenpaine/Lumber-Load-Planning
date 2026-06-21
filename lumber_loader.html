@@ -289,8 +289,8 @@
       <div class="tab" id="tab-tallies-btn" style="display:none" onclick="switchTab('tallies')">Tally</div>
       <div class="tab" id="tab-rowpat-btn" style="display:none" onclick="switchTab('rowpat')">Row Patterns</div>
       <div class="tab active" onclick="switchTab('visual')">Visual Layout</div>
-      <div class="tab" onclick="switchTab('rows')">Row Detail</div>
       <div class="tab" onclick="switchTab('manifest')">Manifest</div>
+      <div class="tab" onclick="switchTab('rows')">Row Detail</div>
       <div class="tab" onclick="switchTab('patterns')">Pattern Library</div>
     </div>
 
@@ -1096,7 +1096,7 @@ function switchTab(t){
   Haptic.selection();
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
   document.querySelectorAll(".tc").forEach(x=>x.classList.remove("active"));
-  document.querySelectorAll(".tab")[["tallies","rowpat","visual","rows","manifest","patterns"].indexOf(t)].classList.add("active");
+  document.querySelectorAll(".tab")[["tallies","rowpat","visual","manifest","rows","patterns"].indexOf(t)].classList.add("active");
   document.getElementById("tab-"+t).classList.add("active");
   state.tab=t; if(t==="visual") zoomFit();
 }
