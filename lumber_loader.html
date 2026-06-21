@@ -106,6 +106,9 @@
   /* click-to-highlight: the active table row stays light blue until another is clicked */
   table.t tbody tr{cursor:pointer}
   table.t tbody tr.activerow td{background:#bdd7ee!important;color:#15314e!important}
+  .rinput{width:56px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:12px;text-align:center;outline:none}
+  .rinput:focus{border-color:var(--green)}
+  .totrow td{background:var(--bg3);font-weight:700;border-top:2px solid var(--green)}
   .secttitle{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--green2);margin:14px 0 6px}
   .rowlbl{font-weight:700;color:var(--green2)}
   .cell-pack{color:#fff;font-weight:700;font-size:11px;border-width:2px!important;border-style:solid!important}
@@ -279,6 +282,7 @@
   <div class="main">
     <div class="tabbar">
       <div class="tab" id="tab-tallies-btn" style="display:none" onclick="switchTab('tallies')">Tally</div>
+      <div class="tab" id="tab-rowpat-btn" style="display:none" onclick="switchTab('rowpat')">Row Patterns</div>
       <div class="tab active" onclick="switchTab('visual')">Visual Layout</div>
       <div class="tab" onclick="switchTab('rows')">Row Detail</div>
       <div class="tab" onclick="switchTab('manifest')">Manifest</div>
@@ -300,6 +304,7 @@
     </div>
 
     <div class="tc" id="tab-tallies"><div class="pad" id="talliesBox"></div></div>
+    <div class="tc" id="tab-rowpat"><div class="pad" id="rowPatBox"></div></div>
     <div class="tc" id="tab-rows"><div class="pad" id="rowDetail"></div></div>
     <div class="tc" id="tab-manifest"><div class="pad" id="manifest"></div></div>
     <div class="tc" id="tab-patterns"><div class="pad" id="patterns"></div></div>
@@ -380,7 +385,8 @@ function populatePalettes(){ const s=document.getElementById("paletteSelP"); if(
 function setPalette(v){ Haptic.selection(); state.palette=+v; const s=document.getElementById("paletteSelP"); if(s) s.value=String(state.palette); renderAll(); }
 
 let state={numRows:10,carLayout:"5+5",split:{aRows:5,bRows:5,aTag:5,bTag:5,mixed:false},addSide:7,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2",palette:0,
-  mode:"recommend",matchMode:2,selected:new Set([16,20]),selA:new Set([12]),selB:new Set([16,20]),rec:null,recA:null,recB:null,_recStatus:"ok",loadedA:false,loadedB:false};
+  mode:"recommend",matchMode:2,selected:new Set([16,20]),selA:new Set([12]),selB:new Set([16,20]),rec:null,recA:null,recB:null,_recStatus:"ok",loadedA:false,loadedB:false,
+  hbPatS:null,hbPatA:null,hbPatB:null,handBuild:{},handBuildA:{},handBuildB:{}};
 
 // ---------- per-side car model ----------
 // The car has two sides whose row heights can differ: 5+5 (10), 7+5 (12, mixed),
@@ -609,7 +615,7 @@ function runSolve(){
 }
 function solveLayout(){ if(_solveTimer) clearTimeout(_solveTimer);
   _solveTimer=setTimeout(()=>{ _solveTimer=null; runSolve(); }, 140); }
-function renderAll(){ renderInventory(); renderStats(); render(); renderRowDetail(); renderManifest(); renderPatterns(); buildLegends(); renderLenPalette(); renderTallies(); }
+function renderAll(){ renderInventory(); renderStats(); render(); renderRowDetail(); renderManifest(); renderPatterns(); buildLegends(); renderLenPalette(); renderTallies(); renderRowPatterns(); }
 
 function renderInventory(){
   let lf=0,pk=0; for(const it of state.items){ lf+=it.length*it.qty; pk+=it.qty; }
@@ -911,10 +917,10 @@ function carCovers(a,b,sel,mode){ if(mode===1) return true; for(const L of sel){
 function makeRec(label,counts,carRows){ const ft=ftOf(counts); return {label,counts,pcs:pcsOf(counts),ft,ok:ft===carRows*TARGET}; }
 function recommendForRows(selSet,rows,mode){
   const sel=[...selSet].sort((a,b)=>a-b);
-  if(sel.length===0) return [];
+  if(sel.length===0) return {recs:[],patterns:[]};
   const allowed=(mode===3)?LENGTHS.slice():sel.slice();
   const patterns=tallyPatterns(allowed);
-  if(patterns.length===0) return [];
+  if(patterns.length===0) return {recs:[],patterns:[]};
   const selSet2=new Set(sel), recs=[];
   for(const p of patterns){ if(recs.length>=MAX_RECS) break;
     if(carCovers(p,p,selSet2,mode)){ const counts={}; LENGTHS.forEach(L=>counts[L]=p[L]*rows); recs.push(makeRec("All "+rows+" rows: "+rowLabelC(p),counts,rows)); } }
@@ -924,27 +930,29 @@ function recommendForRows(selSet,rows,mode){
       if(carCovers(a,b,selSet2,mode)){ let na=Math.floor(rows/2); if(na<1)na=1; const nb=rows-na;
         const counts={}; LENGTHS.forEach(L=>counts[L]=a[L]*na+b[L]*nb);
         recs.push(makeRec(na+" rows ("+rowLabelC(a)+") + "+nb+" rows ("+rowLabelC(b)+")",counts,rows)); } } } }
-  return recs;
+  return {recs,patterns};
 }
 function setRecStatus(kind,msg){ const s=document.getElementById("recStatus"); state._recStatus=kind; if(!s) return; s.className="alert "+(kind==="ok"?"ok":"warn"); s.textContent=msg; }
 function runRecommend(){
   const mm=document.getElementById("matchMode"); if(!mm) return;
   const mode=+mm.value, S=layoutSides(state.carLayout);
+  state.handBuild={}; state.handBuildA={}; state.handBuildB={};   // pattern set changed -> reset hand-build
   if(S.mixed){
-    state.recA=recommendForRows(state.selA,S.aRows,mode);
-    state.recB=recommendForRows(state.selB,S.bRows,mode);
-    state.rec=null;
+    const A=recommendForRows(state.selA,S.aRows,mode), B=recommendForRows(state.selB,S.bRows,mode);
+    state.recA=A.recs; state.recB=B.recs; state.rec=null;
+    state.hbPatA=A.patterns; state.hbPatB=B.patterns; state.hbPatS=null;
     const okA=state.recA.length>0, okB=state.recB.length>0;
     if(okA&&okB) setRecStatus("ok",state.recA.length+" tally(ies) for the 7‑row side · "+state.recB.length+" for the 5‑row side.");
     else setRecStatus("warn","7‑row: "+(okA?state.recA.length+" found":"none yet")+" · 5‑row: "+(okB?state.recB.length+" found":"none yet")+".");
   } else {
-    const total=S.aRows+S.bRows;
-    state.rec=recommendForRows(state.selected,total,mode); state.recA=state.recB=null;
+    const total=S.aRows+S.bRows, R=recommendForRows(state.selected,total,mode);
+    state.rec=R.recs; state.recA=state.recB=null;
+    state.hbPatS=R.patterns; state.hbPatA=state.hbPatB=null;
     if(state.selected.size===0) setRecStatus("warn","Check at least one length, then Recommend.");
     else if(state.rec.length===0) setRecStatus("warn","No single/two‑pattern car covers those lengths — try Palette mode.");
     else setRecStatus("ok",state.rec.length+" full‑car tally(ies) for a "+(total*TARGET)+"‑ft car.");
   }
-  renderTallies();
+  renderTallies(); renderRowPatterns();
 }
 function recommendTap(){ runRecommend(); if(state._recStatus==="ok") Haptic.success(); else Haptic.warning(); }
 function onMatchModeChange(){ Haptic.selection(); const h=document.getElementById("modeHint"); if(state.mode==="recommend"&&h) h.textContent=MATCH_TEXT[+document.getElementById("matchMode").value]; runRecommend(); }
@@ -1005,6 +1013,66 @@ function loadTally(side,idx){ Haptic.success();
   solveLayout();
 }
 
+// ----- Row Patterns: hand-build a custom tally from 72-ft row patterns, then load it -----
+function hbCtx(key){
+  const S=layoutSides(state.carLayout);
+  if(key==="A") return {pats:state.hbPatA||[], map:state.handBuildA, target:S.aRows};
+  if(key==="B") return {pats:state.hbPatB||[], map:state.handBuildB, target:S.bRows};
+  return {pats:state.hbPatS||[], map:state.handBuild, target:S.aRows+S.bRows};
+}
+function hbGridHTML(key,title){
+  const {pats,map,target}=hbCtx(key);
+  if(!pats||pats.length===0) return `<div class="secttitle">${title}</div><div class="muted">Pick lengths in the palette, then build rows here.</div>`;
+  let h=`<div class="secttitle">${title} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">(set how many rows of each 72‑ft pattern — aim for ${target} rows)</span></div>`;
+  h+=`<table class="t"><thead><tr><th>#</th><th style="text-align:left">Row = 72 ft</th>${lenHeadCells()}<th>Rows to use</th></tr></thead><tbody>`;
+  pats.forEach((c,i)=>{
+    h+=`<tr><td>${i+1}</td><td style="text-align:left" class="rowlbl">${rowLabelC(c)}</td>`;
+    LENGTHS.forEach(L=>h+=lenCell(c[L],L));
+    h+=`<td><input class="rinput" type="number" min="0" value="${map[i]||""}" oninput="hbSetRows('${key}',${i},this.value)"></td></tr>`;
+  });
+  h+=`<tr class="totrow"><td></td><td style="text-align:left" class="rowlbl">YOUR HAND‑BUILT TALLY</td>`;
+  LENGTHS.forEach(L=>h+=`<td id="tot-${key}-${L}"></td>`);
+  h+=`<td id="tot-${key}-rows">0 rows</td></tr>`;
+  return h+`</tbody></table>`;
+}
+function renderRowPatterns(){
+  const box=document.getElementById("rowPatBox"); if(!box) return;
+  const S=layoutSides(state.carLayout);
+  const btn=`<div style="margin-top:4px"><button class="btn primary" onclick="loadHandBuild()">⬇ Load hand‑built car into the Loader</button></div>`;
+  if(S.mixed){
+    box.innerHTML=hbGridHTML("A","🟩 7‑row side — Row Patterns")+`<div style="height:14px"></div>`+hbGridHTML("B","🟦 5‑row side — Row Patterns")+btn;
+    hbUpdateTotal("A"); hbUpdateTotal("B");
+  } else {
+    box.innerHTML=hbGridHTML("S","Valid 72‑ft Row Patterns")+btn;
+    hbUpdateTotal("S");
+  }
+}
+function hbSetRows(key,idx,val){ Haptic.selection();
+  const map=hbCtx(key).map, n=parseInt(val,10);
+  if(!val||isNaN(n)||n<=0) delete map[idx]; else map[idx]=n;
+  hbUpdateTotal(key);
+}
+function hbUpdateTotal(key){
+  const {pats,map,target}=hbCtx(key);
+  const tot={}; LENGTHS.forEach(L=>tot[L]=0); let rows=0;
+  pats.forEach((c,i)=>{ const n=+map[i]||0; if(n>0){ rows+=n; LENGTHS.forEach(L=>tot[L]+=c[L]*n); } });
+  LENGTHS.forEach(L=>{ const el=document.getElementById("tot-"+key+"-"+L); if(el) el.textContent=tot[L]||""; });
+  const r=document.getElementById("tot-"+key+"-rows");
+  if(r){ r.textContent=rows+" / "+target+" rows"+(rows===target?"  ✓":""); r.style.color=(rows===target)?"var(--green2)":""; }
+}
+function hbTotals(key){
+  const {pats,map}=hbCtx(key), tot={}; LENGTHS.forEach(L=>tot[L]=0);
+  pats.forEach((c,i)=>{ const n=+map[i]||0; if(n>0) LENGTHS.forEach(L=>tot[L]+=c[L]*n); });
+  return tot;
+}
+function loadHandBuild(){ Haptic.success();
+  const S=layoutSides(state.carLayout);
+  if(S.mixed) state.items=tallyToItems(hbTotals("A"),S.aTag).concat(tallyToItems(hbTotals("B"),S.bTag));
+  else state.items=tallyToItems(hbTotals("S"),S.aTag);
+  state.loadedA=state.loadedB=true;
+  setMode("build"); solveLayout();
+}
+
 // ----- mode switch (Recommend | Build) -----
 function setMode(m){ Haptic.selection(); state.mode=m;
   document.getElementById("recommendPanel").style.display=(m==="recommend")?"":"none";
@@ -1012,6 +1080,7 @@ function setMode(m){ Haptic.selection(); state.mode=m;
   document.getElementById("modeRecommend").classList.toggle("active",m==="recommend");
   document.getElementById("modeBuild").classList.toggle("active",m==="build");
   const tb=document.getElementById("tab-tallies-btn"); if(tb) tb.style.display=(m==="recommend")?"":"none";
+  const rp=document.getElementById("tab-rowpat-btn"); if(rp) rp.style.display=(m==="recommend")?"":"none";
   const h=document.getElementById("modeHint");
   if(m==="recommend"){ if(h) h.textContent=MATCH_TEXT[+document.getElementById("matchMode").value]; renderLenPalette(); runRecommend(); switchTab("tallies"); }
   else { if(h) h.textContent="Add packs to your inventory; the car re‑solves as you go."; switchTab("visual"); }
@@ -1022,7 +1091,7 @@ function switchTab(t){
   Haptic.selection();
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
   document.querySelectorAll(".tc").forEach(x=>x.classList.remove("active"));
-  document.querySelectorAll(".tab")[["tallies","visual","rows","manifest","patterns"].indexOf(t)].classList.add("active");
+  document.querySelectorAll(".tab")[["tallies","rowpat","visual","rows","manifest","patterns"].indexOf(t)].classList.add("active");
   document.getElementById("tab-"+t).classList.add("active");
   state.tab=t; if(t==="visual") zoomFit();
 }
