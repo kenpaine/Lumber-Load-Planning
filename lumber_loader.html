@@ -109,11 +109,6 @@
   .rinput{width:56px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:12px;text-align:center;outline:none}
   .rinput:focus{border-color:var(--green)}
   .totrow td{background:var(--bg3);font-weight:700;border-top:2px solid var(--green)}
-  .manualbox{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin:4px 0 10px}
-  .manuallbl{font-size:11px;color:var(--text2);display:block;margin-bottom:7px}
-  .manualcells{display:flex;flex-wrap:wrap;gap:9px}
-  .manualcell{display:flex;align-items:center;gap:4px}
-  .manualcell .rinput{width:48px}
   .secttitle{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--green2);margin:14px 0 6px}
   .rowlbl{font-weight:700;color:var(--green2)}
   .cell-pack{color:#fff;font-weight:700;font-size:11px;border-width:2px!important;border-style:solid!important}
@@ -391,7 +386,7 @@ function setPalette(v){ Haptic.selection(); state.palette=+v; const s=document.g
 
 let state={numRows:10,carLayout:"5+5",split:{aRows:5,bRows:5,aTag:5,bTag:5,mixed:false},addSide:7,items:[],rows:[],unplaced:[],zoom:1,tab:"visual",theme:"dark",singleMode:false,singleProduct:"2x6",singleGrade:"2",palette:0,
   mode:"recommend",matchMode:2,selected:new Set([16,20]),selA:new Set([12]),selB:new Set([16,20]),rec:null,recA:null,recB:null,_recStatus:"ok",loadedA:false,loadedB:false,
-  handBuild:{},handBuildA:{},handBuildB:{},manualS:{},manualA:{},manualB:{}};
+  hbPatS:null,hbPatA:null,hbPatB:null,handBuild:{},handBuildA:{},handBuildB:{}};
 
 // ---------- per-side car model ----------
 // The car has two sides whose row heights can differ: 5+5 (10), 7+5 (12, mixed),
@@ -505,7 +500,7 @@ function init(){
   solveLayout();
   setMode("recommend");
 }
-function reconfigure(){ Haptic.selection(); state.carLayout=document.getElementById("carLayout").value; state.loadedA=state.loadedB=false; state.handBuild={};state.handBuildA={};state.handBuildB={};state.manualS={};state.manualA={};state.manualB={}; normalizeSides(); syncSideUI(); renderLenPalette(); runRecommend(); solveLayout(); }
+function reconfigure(){ Haptic.selection(); state.carLayout=document.getElementById("carLayout").value; state.loadedA=state.loadedB=false; normalizeSides(); syncSideUI(); renderLenPalette(); runRecommend(); solveLayout(); }
 // Keep every line's side tag valid for the current layout (symmetric -> force the
 // single side; mixed -> keep 5/7, default anything else to the layout's default).
 function normalizeSides(){ const S=layoutSides(state.carLayout);
@@ -561,7 +556,7 @@ function applySingle(){
   solveLayout();
 }
 function removeItem(i){ Haptic.light(); state.items.splice(i,1); solveLayout(); }
-function clearAll(){ Haptic.light(); state.items=[]; state.loadedA=state.loadedB=false; state.handBuild={};state.handBuildA={};state.handBuildB={};state.manualS={};state.manualA={};state.manualB={}; state.rows=Array.from({length:state.numRows},()=>[]); state.unplaced=[]; renderAll(); }
+function clearAll(){ Haptic.light(); state.items=[]; state.loadedA=state.loadedB=false; state.rows=Array.from({length:state.numRows},()=>[]); state.unplaced=[]; renderAll(); }
 
 // ---------- solve scheduling: debounced + off-main-thread Web Worker ----------
 // The backtracking solver can run up to its internal timeout (a few seconds) on
@@ -941,15 +936,18 @@ function setRecStatus(kind,msg){ const s=document.getElementById("recStatus"); s
 function runRecommend(){
   const mm=document.getElementById("matchMode"); if(!mm) return;
   const mode=+mm.value, S=layoutSides(state.carLayout);
+  state.handBuild={}; state.handBuildA={}; state.handBuildB={};   // pattern set changed -> reset hand-build
   if(S.mixed){
     const A=recommendForRows(state.selA,S.aRows,mode), B=recommendForRows(state.selB,S.bRows,mode);
     state.recA=A.recs; state.recB=B.recs; state.rec=null;
+    state.hbPatA=A.patterns; state.hbPatB=B.patterns; state.hbPatS=null;
     const okA=state.recA.length>0, okB=state.recB.length>0;
     if(okA&&okB) setRecStatus("ok",state.recA.length+" tally(ies) for the 7‑row side · "+state.recB.length+" for the 5‑row side.");
     else setRecStatus("warn","7‑row: "+(okA?state.recA.length+" found":"none yet")+" · 5‑row: "+(okB?state.recB.length+" found":"none yet")+".");
   } else {
     const total=S.aRows+S.bRows, R=recommendForRows(state.selected,total,mode);
     state.rec=R.recs; state.recA=state.recB=null;
+    state.hbPatS=R.patterns; state.hbPatA=state.hbPatB=null;
     if(state.selected.size===0) setRecStatus("warn","Check at least one length, then Recommend.");
     else if(state.rec.length===0) setRecStatus("warn","No single/two‑pattern car covers those lengths — try Palette mode.");
     else setRecStatus("ok",state.rec.length+" full‑car tally(ies) for a "+(total*TARGET)+"‑ft car.");
@@ -1016,132 +1014,56 @@ function loadTally(side,idx){ Haptic.success();
 }
 
 // ----- Row Patterns: hand-build a custom tally from 72-ft row patterns, then load it -----
-function manualMap(key){ return key==="A"?state.manualA : key==="B"?state.manualB : state.manualS; }
-// Lengths in play for this side. Once you type ANY manual count, the manual entry
-// drives it: only the lengths you've entered are allowed (every pattern/tally needing
-// a length you didn't enter is eliminated). With no manual entry, fall back to the palette.
-function hbAllowed(key){
-  const man = manualMap(key);
-  const manLens = LENGTHS.filter(L=>(man[L]||0)>0);
-  if(manLens.length) return manLens;
-  const sel = key==="A"?state.selA : key==="B"?state.selB : state.selected;
-  return [...sel].sort((a,b)=>a-b);
-}
 function hbCtx(key){
-  const S=layoutSides(state.carLayout), allowed=hbAllowed(key);
-  return {
-    pats: allowed.length?tallyPatterns(allowed):[],
-    map: key==="A"?state.handBuildA : key==="B"?state.handBuildB : state.handBuild,
-    target: key==="A"?S.aRows : key==="B"?S.bRows : S.aRows+S.bRows,
-    man: manualMap(key)
-  };
-}
-// the manual-entry line (its own container, so re-rendering the pattern table below
-// it as you type doesn't steal focus from the box you're typing in)
-function manualLineHTML(key){
-  const man=manualMap(key);
-  const cells=LENGTHS.map(L=>`<label class="manualcell"><span class="lchip" style="background:${lenFill(L)};color:${lenText(L)}">${L}'</span><input class="rinput" type="number" min="0" value="${man[L]||""}" oninput="onManualChange('${key}',${L},this.value)"></label>`).join("");
-  return `<div class="manualbox"><span class="manuallbl">Manual entry — type pieces you already know (part or all of the tally):</span><div class="manualcells">${cells}</div></div>`;
-}
-function onManualChange(key,L,val){ Haptic.selection();
-  const man=manualMap(key), n=parseInt(val,10);
-  if(!val||isNaN(n)||n<=0) delete man[L]; else man[L]=n;
-  renderPattbl(key);   // patterns + total react; the manual inputs (separate box) keep focus
-}
-function pattblHTML(key){
-  const {pats,map}=hbCtx(key);
-  let h="";
-  if(!pats||pats.length===0){
-    h=`<div class="muted">Enter (or select) at least the lengths that can form a 72‑ft row.</div>`;
-  } else {
-    h=`<table class="t"><thead><tr><th>#</th><th style="text-align:left">Row = 72 ft</th>${lenHeadCells()}<th>Rows to use</th></tr></thead><tbody>`;
-    pats.forEach((c,i)=>{
-      h+=`<tr><td>${i+1}</td><td style="text-align:left" class="rowlbl">${rowLabelC(c)}</td>`;
-      LENGTHS.forEach(L=>h+=lenCell(c[L],L));
-      h+=`<td><input class="rinput" type="number" min="0" value="${map[rowLabelC(c)]||""}" oninput="hbSetRows('${key}',${i},this.value)"></td></tr>`;
-    });
-    h+=`<tr class="totrow"><td></td><td style="text-align:left" class="rowlbl">YOUR HAND‑BUILT TALLY</td>`;
-    LENGTHS.forEach(L=>h+=`<td id="tot-${key}-${L}"></td>`);
-    h+=`<td id="tot-${key}-rows"></td></tr></tbody></table>`;
-  }
-  return h+compTalliesHTML(key);
-}
-// Complementary tallies = recommended full-side completions built ONLY from the entered
-// lengths that can accommodate the manual pieces; the cells show the COMPLEMENT (what to add).
-function compTallies(key){
-  const {target,man}=hbCtx(key);
-  const lens=hbAllowed(key);
-  if(!lens.length) return [];
-  const out=[];
-  recommendForRows(new Set(lens), target, 2).recs.forEach(r=>{
-    if(LENGTHS.every(L=>(r.counts[L]||0)>=(man[L]||0))){
-      const comp={}; let add=0; LENGTHS.forEach(L=>{ comp[L]=(r.counts[L]||0)-(man[L]||0); add+=comp[L]; });
-      out.push({full:r.counts, comp, add, label:r.label});
-    }
-  });
-  return out;
-}
-function compTalliesHTML(key){
-  const man=manualMap(key);
-  if(!LENGTHS.some(L=>(man[L]||0)>0)) return "";   // only after something is manually entered
-  const comps=compTallies(key);
-  let h=`<div class="secttitle" style="margin-top:14px">Complementary tallies — what to add to finish this side</div>`;
-  if(!comps.length) return h+`<div class="muted">No completion fits these pieces — add another length, or reduce a count.</div>`;
-  h+=`<table class="t"><thead><tr><th>#</th><th style="text-align:left">Completion</th>${lenHeadCells()}<th>Add pcs</th><th></th></tr></thead><tbody>`;
-  comps.forEach((c,i)=>{
-    h+=`<tr><td>${i+1}</td><td style="text-align:left">${c.label}</td>`;
-    LENGTHS.forEach(L=>h+=lenCell(c.comp[L],L));
-    h+=`<td>${c.add}</td><td><button class="btn" style="padding:3px 9px;white-space:nowrap" onclick="loadComp('${key}',${i})">Load full car →</button></td></tr>`;
-  });
-  return h+`</tbody></table>`;
-}
-function loadComp(key,idx){ Haptic.success();
-  const c=compTallies(key)[idx]; if(!c) return;
   const S=layoutSides(state.carLayout);
-  if(key==="S"){ state.items=tallyToItems(c.full,S.aTag); }
-  else if(key==="A"){ state.items=state.items.filter(it=>(it.side||S.aTag)!==S.aTag).concat(tallyToItems(c.full,S.aTag)); state.loadedA=true; }
-  else if(key==="B"){ state.items=state.items.filter(it=>(it.side||S.aTag)!==S.bTag).concat(tallyToItems(c.full,S.bTag)); state.loadedB=true; }
-  if(!S.mixed || (state.loadedA && state.loadedB)) setMode("build");
-  solveLayout();
-}
-function renderPattbl(key){
-  const box=document.getElementById("pattbl-"+key); if(!box) return;
-  box.innerHTML=pattblHTML(key);
-  hbUpdateTotal(key);
+  if(key==="A") return {pats:state.hbPatA||[], map:state.handBuildA, target:S.aRows};
+  if(key==="B") return {pats:state.hbPatB||[], map:state.handBuildB, target:S.bRows};
+  return {pats:state.hbPatS||[], map:state.handBuild, target:S.aRows+S.bRows};
 }
 function hbGridHTML(key,title){
-  const {target}=hbCtx(key);
-  let h=`<div class="secttitle">${title} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">(aim for ${target} rows · ${target*72} ft — enter pieces manually and/or set rows of each pattern)</span></div>`;
-  return h+manualLineHTML(key)+`<div id="pattbl-${key}"></div>`;
+  const {pats,map,target}=hbCtx(key);
+  if(!pats||pats.length===0) return `<div class="secttitle">${title}</div><div class="muted">Pick lengths in the palette, then build rows here.</div>`;
+  let h=`<div class="secttitle">${title} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">(set how many rows of each 72‑ft pattern — aim for ${target} rows)</span></div>`;
+  h+=`<table class="t"><thead><tr><th>#</th><th style="text-align:left">Row = 72 ft</th>${lenHeadCells()}<th>Rows to use</th></tr></thead><tbody>`;
+  pats.forEach((c,i)=>{
+    h+=`<tr><td>${i+1}</td><td style="text-align:left" class="rowlbl">${rowLabelC(c)}</td>`;
+    LENGTHS.forEach(L=>h+=lenCell(c[L],L));
+    h+=`<td><input class="rinput" type="number" min="0" value="${map[i]||""}" oninput="hbSetRows('${key}',${i},this.value)"></td></tr>`;
+  });
+  h+=`<tr class="totrow"><td></td><td style="text-align:left" class="rowlbl">YOUR HAND‑BUILT TALLY</td>`;
+  LENGTHS.forEach(L=>h+=`<td id="tot-${key}-${L}"></td>`);
+  h+=`<td id="tot-${key}-rows">0 rows</td></tr>`;
+  return h+`</tbody></table>`;
 }
 function renderRowPatterns(){
   const box=document.getElementById("rowPatBox"); if(!box) return;
   const S=layoutSides(state.carLayout);
-  const btn=`<div style="margin-top:6px"><button class="btn primary" onclick="loadHandBuild()">⬇ Load hand‑built car into the Loader</button></div>`;
+  const btn=`<div style="margin-top:4px"><button class="btn primary" onclick="loadHandBuild()">⬇ Load hand‑built car into the Loader</button></div>`;
   if(S.mixed){
-    box.innerHTML=hbGridHTML("A","🟩 7‑row side — Row Patterns")+`<div style="height:16px"></div>`+hbGridHTML("B","🟦 5‑row side — Row Patterns")+btn;
-    renderPattbl("A"); renderPattbl("B");
+    box.innerHTML=hbGridHTML("A","🟩 7‑row side — Row Patterns")+`<div style="height:14px"></div>`+hbGridHTML("B","🟦 5‑row side — Row Patterns")+btn;
+    hbUpdateTotal("A"); hbUpdateTotal("B");
   } else {
     box.innerHTML=hbGridHTML("S","Valid 72‑ft Row Patterns")+btn;
-    renderPattbl("S");
+    hbUpdateTotal("S");
   }
 }
 function hbSetRows(key,idx,val){ Haptic.selection();
-  const {pats,map}=hbCtx(key), c=pats[idx]; if(!c) return;
-  const k=rowLabelC(c), n=parseInt(val,10);
-  if(!val||isNaN(n)||n<=0) delete map[k]; else map[k]=n;
+  const map=hbCtx(key).map, n=parseInt(val,10);
+  if(!val||isNaN(n)||n<=0) delete map[idx]; else map[idx]=n;
   hbUpdateTotal(key);
 }
-function hbTotals(key){
-  const {pats,map,man}=hbCtx(key), tot={}; LENGTHS.forEach(L=>tot[L]=man[L]||0);
-  pats.forEach((c)=>{ const n=+map[rowLabelC(c)]||0; if(n>0) LENGTHS.forEach(L=>tot[L]+=c[L]*n); });
-  return tot;
-}
 function hbUpdateTotal(key){
-  const {target}=hbCtx(key), tot=hbTotals(key), targetFt=target*72;
-  let ft=0; LENGTHS.forEach(L=>{ ft+=tot[L]*L; const el=document.getElementById("tot-"+key+"-"+L); if(el) el.textContent=tot[L]||""; });
+  const {pats,map,target}=hbCtx(key);
+  const tot={}; LENGTHS.forEach(L=>tot[L]=0); let rows=0;
+  pats.forEach((c,i)=>{ const n=+map[i]||0; if(n>0){ rows+=n; LENGTHS.forEach(L=>tot[L]+=c[L]*n); } });
+  LENGTHS.forEach(L=>{ const el=document.getElementById("tot-"+key+"-"+L); if(el) el.textContent=tot[L]||""; });
   const r=document.getElementById("tot-"+key+"-rows");
-  if(r){ r.textContent=ft+" / "+targetFt+" ft"+(ft===targetFt?"  ✓":""); r.style.color=(ft===targetFt)?"var(--green2)":""; }
+  if(r){ r.textContent=rows+" / "+target+" rows"+(rows===target?"  ✓":""); r.style.color=(rows===target)?"var(--green2)":""; }
+}
+function hbTotals(key){
+  const {pats,map}=hbCtx(key), tot={}; LENGTHS.forEach(L=>tot[L]=0);
+  pats.forEach((c,i)=>{ const n=+map[i]||0; if(n>0) LENGTHS.forEach(L=>tot[L]+=c[L]*n); });
+  return tot;
 }
 function loadHandBuild(){ Haptic.success();
   const S=layoutSides(state.carLayout);
