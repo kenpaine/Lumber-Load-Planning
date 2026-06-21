@@ -936,7 +936,6 @@ function setRecStatus(kind,msg){ const s=document.getElementById("recStatus"); s
 function runRecommend(){
   const mm=document.getElementById("matchMode"); if(!mm) return;
   const mode=+mm.value, S=layoutSides(state.carLayout);
-  state.handBuild={}; state.handBuildA={}; state.handBuildB={};   // pattern set changed -> reset hand-build
   if(S.mixed){
     const A=recommendForRows(state.selA,S.aRows,mode), B=recommendForRows(state.selB,S.bRows,mode);
     state.recA=A.recs; state.recB=B.recs; state.rec=null;
@@ -1028,7 +1027,7 @@ function hbGridHTML(key,title){
   pats.forEach((c,i)=>{
     h+=`<tr><td>${i+1}</td><td style="text-align:left" class="rowlbl">${rowLabelC(c)}</td>`;
     LENGTHS.forEach(L=>h+=lenCell(c[L],L));
-    h+=`<td><input class="rinput" type="number" min="0" value="${map[i]||""}" oninput="hbSetRows('${key}',${i},this.value)"></td></tr>`;
+    h+=`<td><input class="rinput" type="number" min="0" value="${map[rowLabelC(c)]||""}" oninput="hbSetRows('${key}',${i},this.value)"></td></tr>`;
   });
   h+=`<tr class="totrow"><td></td><td style="text-align:left" class="rowlbl">YOUR HAND‑BUILT TALLY</td>`;
   LENGTHS.forEach(L=>h+=`<td id="tot-${key}-${L}"></td>`);
@@ -1048,21 +1047,22 @@ function renderRowPatterns(){
   }
 }
 function hbSetRows(key,idx,val){ Haptic.selection();
-  const map=hbCtx(key).map, n=parseInt(val,10);
-  if(!val||isNaN(n)||n<=0) delete map[idx]; else map[idx]=n;
+  const {pats,map}=hbCtx(key), c=pats[idx]; if(!c) return;
+  const k=rowLabelC(c), n=parseInt(val,10);   // key by pattern label so it survives re-renders / recompute
+  if(!val||isNaN(n)||n<=0) delete map[k]; else map[k]=n;
   hbUpdateTotal(key);
 }
 function hbUpdateTotal(key){
   const {pats,map,target}=hbCtx(key);
   const tot={}; LENGTHS.forEach(L=>tot[L]=0); let rows=0;
-  pats.forEach((c,i)=>{ const n=+map[i]||0; if(n>0){ rows+=n; LENGTHS.forEach(L=>tot[L]+=c[L]*n); } });
+  pats.forEach((c)=>{ const n=+map[rowLabelC(c)]||0; if(n>0){ rows+=n; LENGTHS.forEach(L=>tot[L]+=c[L]*n); } });
   LENGTHS.forEach(L=>{ const el=document.getElementById("tot-"+key+"-"+L); if(el) el.textContent=tot[L]||""; });
   const r=document.getElementById("tot-"+key+"-rows");
   if(r){ r.textContent=rows+" / "+target+" rows"+(rows===target?"  ✓":""); r.style.color=(rows===target)?"var(--green2)":""; }
 }
 function hbTotals(key){
   const {pats,map}=hbCtx(key), tot={}; LENGTHS.forEach(L=>tot[L]=0);
-  pats.forEach((c,i)=>{ const n=+map[i]||0; if(n>0) LENGTHS.forEach(L=>tot[L]+=c[L]*n); });
+  pats.forEach((c)=>{ const n=+map[rowLabelC(c)]||0; if(n>0) LENGTHS.forEach(L=>tot[L]+=c[L]*n); });
   return tot;
 }
 function loadHandBuild(){ Haptic.success();
