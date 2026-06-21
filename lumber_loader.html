@@ -173,15 +173,15 @@
 <body>
 <header>
   <h1>🚃 Lumber Loader</h1>
-  <span class="sub">Centerbeam 72 ft · recommend a tally or build from inventory</span>
+  <span class="sub">Centerbeam 72 ft · build a tally, then load the car</span>
   <button class="btn theme-toggle" id="themeBtn" onclick="toggleTheme()" title="Toggle light / dark mode">🌙 Dark</button>
 </header>
 
 <div class="app">
   <div class="sidebar">
     <div class="modesw" id="modeSwitch">
-      <button class="modebtn active" id="modeRecommend" onclick="setMode('recommend')">◆ Recommend</button>
-      <button class="modebtn" id="modeBuild" onclick="setMode('build')">▦ Build</button>
+      <button class="modebtn active" id="modeRecommend" onclick="setMode('recommend')">◆ Tally</button>
+      <button class="modebtn" id="modeBuild" onclick="setMode('build')">▦ Loader</button>
     </div>
     <div class="modehint" id="modeHint"></div>
 
@@ -278,7 +278,7 @@
 
   <div class="main">
     <div class="tabbar">
-      <div class="tab" id="tab-tallies-btn" style="display:none" onclick="switchTab('tallies')">Recommended Tallies</div>
+      <div class="tab" id="tab-tallies-btn" style="display:none" onclick="switchTab('tallies')">Tally</div>
       <div class="tab active" onclick="switchTab('visual')">Visual Layout</div>
       <div class="tab" onclick="switchTab('rows')">Row Detail</div>
       <div class="tab" onclick="switchTab('manifest')">Manifest</div>
