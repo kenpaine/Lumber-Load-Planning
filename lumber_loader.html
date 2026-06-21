@@ -106,6 +106,11 @@
   /* click-to-highlight: the active table row stays light blue until another is clicked */
   table.t tbody tr{cursor:pointer}
   table.t tbody tr.activerow td{background:#bdd7ee!important;color:#15314e!important}
+  /* click any column header to sort the table by that column */
+  table.t thead th{cursor:pointer;user-select:none}
+  table.t thead th:hover{outline:2px solid var(--green);outline-offset:-2px}
+  table.t thead th.sortasc::after{content:" ▲";font-size:8px;opacity:.85}
+  table.t thead th.sortdesc::after{content:" ▼";font-size:8px;opacity:.85}
   .rinput{width:56px;padding:3px 5px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:12px;text-align:center;outline:none}
   .rinput:focus{border-color:var(--green)}
   .totrow td{background:var(--bg3);font-weight:700;border-top:2px solid var(--green)}
@@ -1122,13 +1127,43 @@ function rowHighlight(ev){
   tr.classList.add("activerow");
   Haptic.selection();
 }
+// Generic, table-agnostic column sort: click any header in a table.t to sort its rows by
+// that column (toggles asc/desc). Works for every table in the app — recommended tallies,
+// row patterns, manifest summaries, pattern library — with no per-table wiring.
+function cellSortVal(cell){ if(!cell) return ""; const inp=cell.querySelector("input"); return (inp?inp.value:cell.textContent).trim(); }
+function sortTableByCol(table,colIdx,th){
+  const tb=table.tBodies[0]; if(!tb) return;
+  const allRows=Array.prototype.slice.call(tb.rows);
+  const totals=allRows.filter(r=>r.classList.contains("totrow"));     // pinned to the bottom
+  const rows=allRows.filter(r=>!r.classList.contains("totrow"));
+  if(rows.length<2) return;
+  const numeric=rows.every(r=>{ const v=cellSortVal(r.cells[colIdx]); return v===""||/^-?\d+(\.\d+)?$/.test(v); });
+  const dir=(table.getAttribute("data-sortcol")===String(colIdx) && table.getAttribute("data-sortdir")==="asc")?"desc":"asc";
+  rows.sort((a,b)=>{
+    const va=cellSortVal(a.cells[colIdx]), vb=cellSortVal(b.cells[colIdx]);
+    const c = numeric ? ((va===""?0:parseFloat(va))-(vb===""?0:parseFloat(vb))) : va.localeCompare(vb);
+    return dir==="asc"?c:-c;
+  });
+  rows.forEach(r=>tb.appendChild(r)); totals.forEach(r=>tb.appendChild(r));
+  table.setAttribute("data-sortcol",colIdx); table.setAttribute("data-sortdir",dir);
+  const heads=table.tHead?table.tHead.rows[0].cells:[];
+  for(let i=0;i<heads.length;i++) heads[i].classList.remove("sortasc","sortdesc");
+  th.classList.add(dir==="asc"?"sortasc":"sortdesc");
+}
+function headerSort(ev){
+  const th=ev.target.closest("table.t thead th"); if(!th) return;
+  if((th.textContent||"").trim()==="") return;                        // skip action/empty columns
+  const tr=th.parentNode, table=th.closest("table.t");
+  sortTableByCol(table, Array.prototype.indexOf.call(tr.cells, th), th);
+  Haptic.selection();
+}
 // Shared theme + colour scheme: load the saved palette, and live-sync to any other open page/tab/iframe.
 try{ const p=parseInt(localStorage.getItem("cb-palette"),10); if(p>=0 && p<SCHEMES.length) state.palette=p; }catch(e){}
 window.addEventListener("storage",e=>{
   if(e.key==="cb-theme"){ applyTheme(e.newValue||"dark"); render(); }
   else if(e.key==="cb-palette"){ const v=parseInt(e.newValue,10); if(v>=0 && v<SCHEMES.length){ state.palette=v; const s=document.getElementById("paletteSelP"); if(s) s.value=String(v); renderAll(); } }
 });
-window.addEventListener("load",()=>{ initTheme(); init(); zoomFit(); populatePalettes(); document.addEventListener("click",rowHighlight); });
+window.addEventListener("load",()=>{ initTheme(); init(); zoomFit(); populatePalettes(); document.addEventListener("click",rowHighlight); document.addEventListener("click",headerSort); });
 window.addEventListener("resize",()=>{ if(state.tab==="visual") zoomFit(); });
 </script>
 </body>
