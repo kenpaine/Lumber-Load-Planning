@@ -10,9 +10,10 @@ const repoRoot = join(here, "..", ".."); // app/scripts -> app -> repo root
 const www = join(here, "..", "www");
 
 // [sourceFileAtRepoRoot, destNameInWww]
+// The combined app (lumber_loader.html — Tally + Loader modes with the built-in
+// tally→loader handoff) is the single source of truth and the iOS entry document.
 const files = [
-  ["centerbeam_tally_recommender.html", "tally.html"],
-  ["centerbeam_layout_planner.html", "planner.html"],
+  ["lumber_loader.html", "index.html"],
 ];
 
 mkdirSync(www, { recursive: true });
@@ -29,4 +30,4 @@ for (const [src, dst] of files) {
   console.log(`  copied ${src} -> www/${dst}`);
   copied++;
 }
-console.log(`sync-www: ${copied}/${files.length} file(s) copied. (www/index.html is the app shell, not synced.)`);
+console.log(`sync-www: ${copied}/${files.length} file(s) copied (lumber_loader.html -> www/index.html).`);

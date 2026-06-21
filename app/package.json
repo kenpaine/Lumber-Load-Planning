@@ -2,7 +2,7 @@
   "name": "lumber-load-mobile",
   "version": "1.0.0",
   "private": true,
-  "description": "iOS app wrapper combining the Centerbeam Tally Recommender and Layout Planner web apps.",
+  "description": "iOS app wrapper for the combined Lumber Loader web app (Tally Recommender + Layout Planner with built-in tally->loader handoff).",
   "type": "module",
   "scripts": {
     "sync-www": "node scripts/sync-www.mjs",
