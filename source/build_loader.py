@@ -90,13 +90,26 @@ Private Sub WriteCounts(ld As Worksheet, cnt() As Long, ByVal mixed As Boolean, 
     Next i
 End Sub
 
-' Solve + jump to the Loader (and re-enable events).
-Private Sub FinishLoad(ld As Worksheet)
+' Solve, re-enable events, and (only when the car is complete) jump to the Loader.
+Private Sub FinishLoad(ld As Worksheet, ByVal jumpToLoader As Boolean)
     Application.EnableEvents = True
     SolveLayoutQuiet
-    ld.Activate
-    ld.Range("A1").Select
+    If jumpToLoader Then
+        ld.Activate
+        ld.Range("A1").Select
+    End If
 End Sub
+
+' Does any Loader line carry this side tag (i.e. has that side already been loaded)?
+Private Function SideHasInventory(ld As Worksheet, ByVal sideTag As String) As Boolean
+    Dim row As Long
+    For row = PLI_FIRST To PLI_LAST
+        If CStr(ld.Cells(row, 1).Value) = sideTag And Len(Trim(CStr(ld.Cells(row, 2).Value))) > 0 Then
+            SideHasInventory = True
+            Exit Function
+        End If
+    Next row
+End Function
 
 ' ---- Send the recommended tally on the active row of the Tally sheet ----
 Public Sub SendTallyToLoader()
@@ -140,8 +153,14 @@ Public Sub SendTallyToLoader()
     ld.Range("C5").Value = carT
     ClearLoaderLines ld, keepTag
     WriteCounts ld, cnt, mixed, sideTag
+    Dim jump As Boolean
+    If Not mixed Then
+        jump = True                            ' symmetric: one send = the whole car
+    Else
+        jump = SideHasInventory(ld, keepTag)   ' compound: jump only once BOTH sides are loaded
+    End If
 done:
-    FinishLoad ld
+    FinishLoad ld, jump
 End Sub
 
 ' ---- Send the hand-built tally from the Row Patterns tab (the whole car) ----
@@ -188,7 +207,7 @@ Public Sub SendHandBuildToLoader()
         If anyB Then WriteCounts ld, cntB, True, "5-row"
     End If
 done:
-    FinishLoad ld
+    FinishLoad ld, True          ' hand-build is always the whole car
 End Sub
 '''
 
