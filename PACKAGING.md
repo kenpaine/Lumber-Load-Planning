@@ -1,6 +1,6 @@
-# Packaging the Tally Recommender as Native Store Apps
+# Packaging Lumber Loader as Native Store Apps
 
-A build-and-submit checklist for shipping `centerbeam_tally_recommender.html` as
+A build-and-submit checklist for shipping `lumber_loader.html` as
 native apps in the **Apple App Store, Google Play, Microsoft Store, and Mac App
 Store**.
 
@@ -8,6 +8,10 @@ Store**.
 truth and wrap it — **[Capacitor](https://capacitorjs.com)** for mobile (iOS +
 Android), **[Tauri v2](https://tauri.app)** for desktop (Windows + macOS). No
 rewrite; every store wraps the same `www/index.html`.
+
+> The iOS Capacitor shell already exists in `app/` (see `app/README.md`). The
+> Android, Windows, and Mac builds follow the same pattern — point `webDir` at
+> the built `www/` folder which mirrors `lumber_loader.html`.
 
 > The app is pure client-side computation with **no backend, no dependencies, and
 > no data collection** — which keeps every store's privacy/data forms trivial
@@ -23,8 +27,8 @@ rewrite; every store wraps the same `www/index.html`.
 - [ ] Microsoft Partner Center (individual) — **~$19 one-time**
 
 **Identity & assets** (define once, reuse everywhere):
-- [ ] App name: *Centerbeam Tally Recommender*
-- [ ] Bundle/App ID (reverse-DNS, identical across stores): e.g. `com.kenpaine.centerbeamtally`
+- [ ] App name: *Lumber Loader*
+- [ ] Bundle/App ID (reverse-DNS, identical across stores): `com.kenpaine.lumberload` (already set in `app/capacitor.config.json`)
 - [ ] Master icon: one **1024×1024 PNG** → generate all sizes (`capacitor-assets` / `tauri icon`)
 - [ ] **Privacy policy URL** — required by Apple & Google. A one-paragraph "no data
       collected, runs fully offline" page on GitHub Pages is enough.
@@ -32,7 +36,7 @@ rewrite; every store wraps the same `www/index.html`.
 
 **Tooling:**
 - [ ] Node ✅ · Android Studio + SDK (Windows) · Xcode (Mac) · Rust for the desktop shell (`winget install Rustlang.Rustup`)
-- [ ] Capacitor: `npm i @capacitor/core @capacitor/cli`; copy `centerbeam_tally_recommender.html` → `www/index.html` as the shared `webDir`
+- [ ] Capacitor: `npm i @capacitor/core @capacitor/cli`; copy `lumber_loader.html` → `www/index.html` as the shared `webDir` (the `app/` directory already does this via `sync-www` in `app/package.json`)
 
 ---
 
