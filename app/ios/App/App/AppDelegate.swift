@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import WebKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +8,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
         return true
     }
 
@@ -46,4 +46,48 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }
 
+}
+
+// Capacitor bridge subclass — explicitly registers the app-local print plugin
+// (the reliable path; app-target plugins aren't always auto-discovered). Set as the
+// view controller's custom class in Main.storyboard.
+class MainViewController: CAPBridgeViewController {
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(LumberPrintPlugin())
+    }
+}
+
+// Native AirPrint bridge. WKWebView ignores window.print(), so the Print button
+// calls this; it hands the live web view to UIPrintInteractionController, which
+// renders with the page's @media print CSS — same one-page manifest as the web.
+@objc(LumberPrintPlugin)
+public class LumberPrintPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "LumberPrintPlugin"
+    public let jsName = "LumberPrint"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "print", returnType: CAPPluginReturnPromise)
+    ]
+
+    @objc func print(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let webView = self.bridge?.webView else {
+                call.reject("No web view available to print")
+                return
+            }
+            let controller = UIPrintInteractionController.shared
+            let info = UIPrintInfo(dictionary: nil)
+            info.outputType = .general
+            info.jobName = call.getString("jobName") ?? "Load Manifest"
+            info.orientation = .landscape
+            controller.printInfo = info
+            controller.printFormatter = webView.viewPrintFormatter()
+            controller.present(animated: true) { (_, completed, error) in
+                if let error = error {
+                    call.reject(error.localizedDescription)
+                } else {
+                    call.resolve(["completed": completed])
+                }
+            }
+        }
+    }
 }

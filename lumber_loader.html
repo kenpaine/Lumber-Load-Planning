@@ -58,6 +58,22 @@
   .iitem{display:flex;align-items:center;gap:7px;padding:5px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;font-size:12px}
   .chip{display:inline-flex;align-items:center;justify-content:center;min-width:54px;padding:2px 6px;border-radius:3px;color:#fff;font-weight:700;font-size:11px;border:2px solid #000}
   .iitem .ilabel{flex:1}.iitem .icount{color:var(--text3);font-size:11px}
+  /* inline per-line editors in the inventory list (product / grade dropdowns + packs).
+     Scoped under .iitem so they outrank the base select / input[type=number] width rules. */
+  .iitem{flex-wrap:wrap}
+  .iitem .isel{width:auto;flex:1 1 56px;min-width:46px;font-size:11px;padding:3px 4px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);outline:none}
+  .iitem .isel:focus{border-color:var(--green)}
+  .iitem .iqty{width:46px;flex:0 0 46px;min-width:46px;font-size:11px;padding:3px 4px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);outline:none}
+  .iitem .iqty:focus{border-color:var(--green)}
+  /* packs stepper: −/+ buttons either side of a typeable field (iOS has no native number spinners) */
+  .iitem .qstep{display:inline-flex;align-items:stretch;flex:0 0 auto}
+  .iitem .qbtn{flex:0 0 auto;min-width:24px;padding:2px 7px;font-size:15px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;background:var(--bg2);border:1px solid var(--border);color:var(--text2);cursor:pointer;user-select:none}
+  .iitem .qbtn:hover{color:var(--green2);border-color:var(--green)}
+  .iitem .qbtn:active{background:var(--border)}
+  .iitem .qbtn:first-child{border-radius:4px 0 0 4px;border-right:none}
+  .iitem .qbtn:last-child{border-radius:0 4px 4px 0;border-left:none}
+  .iitem .qstep .iqty{flex:0 0 38px;width:38px;min-width:38px;border-radius:0;-webkit-appearance:none;-moz-appearance:textfield}
+  .iitem .qstep .iqty::-webkit-outer-spin-button,.iitem .qstep .iqty::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .brem{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px}
   .brem:hover{color:var(--red2)}
   /* per-line side toggle (mixed cars): color-coded 7|5 segmented control, left of the pack */
@@ -160,6 +176,9 @@
     select,input[type=number]{font-size:16px;padding:9px 10px}
     .btn{padding:10px 12px;font-size:13px}
     label{font-size:13px}
+    .iitem .isel{font-size:16px;padding:7px 6px;flex:1 1 90px}
+    .iitem .qstep .iqty{font-size:16px;padding:7px 4px;flex:0 0 52px;width:52px}
+    .iitem .qbtn{min-width:42px;font-size:19px;padding:6px 10px}
   }
   @media print{
     @page{size:letter landscape;margin:0.3in}
@@ -176,6 +195,13 @@
     .secttitle{color:#2e5e20!important}
     .printbtn,.mf-pal,.screen-only,.cr{display:none!important}
     .printsheet{border:none!important;padding:0!important;margin:0!important}
+    /* one landscape letter page = just the car-layout diagram + the pick list. Cap the diagram
+       height so the pick list below it still fits on the same page. */
+    svg.mfdiagram{width:auto!important;height:auto!important;max-width:100%;max-height:4.7in}
+    .printsheet .sheet-title{font-size:15px}
+    .printsheet .ps-sub{font-size:10px;margin:1px 0 6px}
+    .pl-cols{gap:10px}
+    .pl-title{margin-top:8px}
   }
 </style>
 </head>
@@ -216,6 +242,13 @@
           <option value="2" selected>Each selected must appear</option>
           <option value="3">Each must appear + fillers</option>
         </select>
+      </div>
+      <div>
+        <label>Load tallies as (defaults — fine‑tune per line in the Loader)</label>
+        <div class="addgrid">
+          <div><select id="tallyProduct" title="Product the tally loads as" onchange="setTallyPG()"></select></div>
+          <div><select id="tallyGrade" title="Grade the tally loads as" onchange="setTallyPG()"></select></div>
+        </div>
       </div>
       <div id="lenPaletteWrap"></div>
       <button class="btn primary full" style="margin-top:10px" onclick="recommendTap()">◆ Recommend Tallies</button>
@@ -345,6 +378,16 @@ const Haptic=(function(){
     error(){ notify("ERROR"); }
   };
 })();
+
+// ---------- Print: native AirPrint inside the app (WKWebView ignores window.print()), plain print on the web ----------
+function nativePrinter(){ let w=window;
+  for(let i=0;i<5&&w;i++){ try{ const C=w.Capacitor; if(C&&C.Plugins&&C.Plugins.LumberPrint) return C.Plugins.LumberPrint; }catch(e){} if(w===w.parent) break; w=w.parent; }
+  return null; }
+function printManifest(){ Haptic.medium();
+  const P=nativePrinter();
+  if(P&&P.print){ try{ P.print({jobName:"Load Manifest"}).catch(()=>{}); }catch(e){ window.print(); } }
+  else { window.print(); }   // plain web browser
+}
 
 const TARGET=72, MAX_SLOTS=9;
 const PRODUCTS=["2x4","2x6","2x8","2x10","4x4","4x6","6x6"];
@@ -488,9 +531,13 @@ function init(){
   fillSelect("addGrade",GRADES,g=>"Grade "+g);
   fillSelect("singleProduct",PRODUCTS);
   fillSelect("singleGrade",GRADES,g=>"Grade "+g);
+  fillSelect("tallyProduct",PRODUCTS);
+  fillSelect("tallyGrade",GRADES,g=>"Grade "+g);
   document.getElementById("addLength").value="16";
   document.getElementById("singleProduct").value=state.singleProduct;
   document.getElementById("singleGrade").value=state.singleGrade;
+  document.getElementById("tallyProduct").value=state.singleProduct;
+  document.getElementById("tallyGrade").value=state.singleGrade;
   document.getElementById("singleMode").value=state.singleMode?"yes":"no";
   syncSingleUI();
   state.carLayout="5+5"; document.getElementById("carLayout").value="5+5";
@@ -525,9 +572,18 @@ function addItem(){
   const side=S.mixed?state.addSide:S.aTag;
   const ex=state.items.find(it=>it.product===product&&it.length===length&&it.grade===grade&&it.side===side);
   if(ex) ex.qty+=qty; else state.items.push({product,length,grade,qty,side});
+  renderInventory();   // sort + show the new line beside its length right away
   solveLayout();
 }
 function setItemSide(i,val){ Haptic.selection(); state.items[i].side=+val; solveLayout(); }
+// inline per-line inventory edits — product/grade re-tag packs (manifest pick list), qty re-packs the car
+function setItemProduct(i,v){ if(!state.items[i]) return; Haptic.selection(); state.items[i].product=v; solveLayout(); }
+function setItemGrade(i,v){ if(!state.items[i]) return; Haptic.selection(); state.items[i].grade=v; solveLayout(); }
+function setItemQty(i,v){ if(!state.items[i]) return; const n=parseInt(v,10);
+  if(!n||n<1){ renderInventory(); return; }   // invalid/blank — snap back; use ✕ to remove a line
+  Haptic.light(); state.items[i].qty=n; solveLayout(); }
+function bumpItemQty(i,delta){ const it=state.items[i]; if(!it) return; const n=Math.max(1,(it.qty||0)+delta);
+  if(n===it.qty) return; Haptic.selection(); it.qty=n; renderInventory(); solveLayout(); }   // −/+ stepper
 function setAddSide(v){ state.addSide=v; const t=document.getElementById("addSideToggle"); if(t){ const g=t.querySelectorAll(".seg"); g[0].className="seg"+(v===7?" on7":""); g[1].className="seg"+(v===5?" on5":""); } }
 
 // ---------- single product/grade mode ----------
@@ -548,6 +604,8 @@ function toggleSingle(){
 function applySingle(){
   state.singleProduct=document.getElementById("singleProduct").value;
   state.singleGrade=document.getElementById("singleGrade").value;
+  { const tp=document.getElementById("tallyProduct"); if(tp) tp.value=state.singleProduct;
+    const tg=document.getElementById("tallyGrade"); if(tg) tg.value=state.singleGrade; }
   if(state.singleMode){
     const merged={};
     for(const it of state.items){
@@ -560,6 +618,13 @@ function applySingle(){
   }
   syncSingleUI();
   solveLayout();
+}
+// Tally-mode product/grade picker → sets the default tallyToItems() stamps on handoff.
+function setTallyPG(){ Haptic.selection();
+  state.singleProduct=document.getElementById("tallyProduct").value;
+  state.singleGrade=document.getElementById("tallyGrade").value;
+  const sp=document.getElementById("singleProduct"); if(sp) sp.value=state.singleProduct;
+  const sg=document.getElementById("singleGrade"); if(sg) sg.value=state.singleGrade;
 }
 function removeItem(i){ Haptic.light(); state.items.splice(i,1); solveLayout(); }
 function clearAll(){ Haptic.light(); state.items=[]; state.loadedA=state.loadedB=false; state.rows=Array.from({length:state.numRows},()=>[]); state.unplaced=[]; renderAll(); }
@@ -624,6 +689,9 @@ function solveLayout(){ if(_solveTimer) clearTimeout(_solveTimer);
 function renderAll(){ renderInventory(); renderStats(); render(); renderRowDetail(); renderManifest(); renderPatterns(); buildLegends(); renderLenPalette(); renderTallies(); renderRowPatterns(); }
 
 function renderInventory(){
+  // keep the grid grouped by side (mixed cars) then sorted by length — stable, so same-length
+  // lines stay in the order they were added and a new pack lands beside others of its length.
+  state.items.sort((a,b)=>((b.side||0)-(a.side||0))||(a.length-b.length));
   let lf=0,pk=0; for(const it of state.items){ lf+=it.length*it.qty; pk+=it.qty; }
   const cap=state.numRows*TARGET;
   document.getElementById("lfVal").textContent=lf.toLocaleString();
@@ -641,9 +709,12 @@ function renderInventory(){
     state.items.forEach((it,i)=>{ const d=document.createElement("div"); d.className="iitem";
       const sd=it.side||defaultSideTag(state.carLayout);
       const pill=mixed?`<span class="sideseg" title="Which side this pack loads on — click 7 or 5 to flip"><b class="seg ${sd===7?'on7':''}" onclick="setItemSide(${i},7)">7</b><b class="seg ${sd===5?'on5':''}" onclick="setItemSide(${i},5)">5</b></span>`:"";
-      d.innerHTML=`${pill}<span class="chip" style="background:${LCOLORS[it.length]};border-color:${PCOLORS[it.product]};color:${GFONT[it.grade]};min-width:74px">${it.product}·${it.length}·${it.grade}</span>
-        <span class="ilabel"></span>
-        <span class="icount">${it.qty} pcs</span>
+      const prodOpts=PRODUCTS.map(p=>`<option ${p===it.product?"selected":""}>${p}</option>`).join("");
+      const gradeOpts=GRADES.map(g=>`<option ${g===it.grade?"selected":""}>${g}</option>`).join("");
+      d.innerHTML=`${pill}<span class="chip" title="${it.length} ft" style="background:${LCOLORS[it.length]};border-color:${PCOLORS[it.product]};color:${GFONT[it.grade]};min-width:32px;padding:2px 5px">${it.length}'</span>
+        <select class="isel" title="Product — edit this line" onchange="setItemProduct(${i},this.value)">${prodOpts}</select>
+        <select class="isel" title="Grade — edit this line" onchange="setItemGrade(${i},this.value)">${gradeOpts}</select>
+        <span class="qstep"><button type="button" class="qbtn" title="−1 pack" onclick="bumpItemQty(${i},-1)">−</button><input class="iqty" type="number" min="1" max="999" value="${it.qty}" title="Packs — tap −/+ or type" onchange="setItemQty(${i},this.value)"><button type="button" class="qbtn" title="+1 pack" onclick="bumpItemQty(${i},1)">+</button></span>
         <button class="brem" title="Remove" onclick="removeItem(${i})">✕</button>`;
       el.appendChild(d); });
   }
@@ -851,13 +922,13 @@ function renderManifest(){
   const loaded=state.rows.reduce((s,r)=>s+r.reduce((a,c)=>a+c.length,0),0);
   const full=state.rows.filter(r=>r.reduce((a,c)=>a+c.length,0)===TARGET).length;
   const date=new Date().toLocaleDateString();
-  let h=`<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap">
+  let h=`<div class="screen-only" style="display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap">
     <div class="secttitle" style="margin:0">Load Manifest</div>
     <label class="mf-pal">Palette
       <select onchange="setPalette(this.value)">${SCHEMES.map((p,i)=>`<option value="${i}" ${state.palette===i?"selected":""}>${p.name}</option>`).join("")}</select>
     </label>
-    <button class="btn printbtn" onclick="Haptic.medium();window.print()">🖨 Print (1 page)</button></div>`;
-  h+=`<div class="manifest-head">
+    <button class="btn printbtn" onclick="printManifest()">🖨 Print (1 page)</button></div>`;
+  h+=`<div class="manifest-head screen-only">
     <div><div class="k">Car Type</div>Centerbeam 72 ft</div>
     <div><div class="k">Rows</div>${full}/${state.numRows} full</div>
     <div><div class="k">Total Lineal Ft</div>${loaded} ft</div>
