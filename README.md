@@ -13,7 +13,7 @@ Or start at the **[App Hub](https://kenpaine.github.io/Lumber-Load-Planning/)** 
 | Mode | What it does |
 |---|---|
 | **Tally** | Pick the lengths you want and get complete, loadable full‑car tallies (720 ft / 864 ft / 1008 ft). Three match modes, click‑to‑sort tables, hand‑build grid. |
-| **Loader** | Enter your pack inventory (product × length × grade) and solve the full car layout — visual diagram, row detail, printable manifest. |
+| **Loader** | Enter and **edit** your pack inventory per line (product × length × grade × packs), solve the full car layout — visual diagram, row detail — and **print or email** a one‑page PDF manifest with customer + order #. |
 
 Tap **Load into car →** in Tally mode to send a recommended tally straight into the Loader — the two modes form one connected workflow.
 
@@ -42,7 +42,7 @@ Full‑featured, mobile‑friendly app — open it in any browser, no install, n
    - *Each must appear + fillers:* every checked length appears; other lengths may finish a row.
 5. Click **Recommend Tallies** — the **Tally** tab lists every valid full‑car tally, with piece counts per length, totals, and an **OK** mark. Click any column header to sort.
 6. On the **Row Patterns** tab, type **Rows to use** for each 72‑ft pattern to **hand‑build a custom car** — the running total shows *rows / target* with an **OK** when it matches.
-7. Click **Load into car →** to send any tally straight into Loader mode and solve.
+7. Set **Load tallies as** (Product / Grade) to choose what a loaded tally becomes — the default is `2x6 · #2`, and you can fine‑tune each line afterward in the Loader. Then click **Load into car →** to send any tally straight into Loader mode and solve.
 
 On a **mixed 7+5** car, Tally mode shows a separate length palette and tally table for each side (7‑row = 504 ft, 5‑row = 360 ft).
 
@@ -50,23 +50,25 @@ On a **mixed 7+5** car, Tally mode shows a separate length palette and tally tab
 
 [![Lumber Loader — Visual Layout tab (browser)](html_app_screenshot.png)](https://kenpaine.github.io/Lumber-Load-Planning/lumber_loader.html)
 
-1. **Add your inventory** — pick Product, Length, Grade, and pack count, then **+ Add to Inventory**. Total Lineal Footage and capacity update live.
-2. On a **mixed 7+5** car, each inventory line gets a **Side** toggle (7‑row / 5‑row); the two sides solve independently.
-3. Click **⚡ Solve Layout** — the solver fills each row to exactly 72 ft and stacks like packs into columns.
-4. Read the result on the tabs:
+1. **Build your inventory** — pick Product, Length, Grade, and pack count, then **+ Add to Inventory**. Total Lineal Footage and capacity update live.
+2. **Edit any line in place** — every inventory row has **Product / Grade** dropdowns and a **− / +** pack stepper (tap to adjust, or type a number). The list stays **sorted by length**, and a newly added pack slots in beside others of its length — so it's quick to correct a loaded tally's default (`2x6 · #2`) into the real product/grade mix and get an accurate pick list.
+3. On a **mixed 7+5** car, each inventory line gets a **Side** toggle (7‑row / 5‑row); the two sides solve independently.
+4. Click **⚡ Solve Layout** — the solver fills each row to exactly 72 ft and stacks like packs into columns.
+5. Read the result on the tabs:
    - **Visual Layout** — to‑scale, zoomable car diagram; hover any pack to inspect it.
    - **Row Detail** — per‑row breakdown with pack labels.
-   - **Manifest** — the printable one‑page car diagram + pick list (see below).
+   - **Manifest** — print or email the one‑page car diagram + pick list (see below).
    - **Pattern Library** — every 72‑ft length combination, click‑to‑sort.
 
 ### Manifest tab
 
 [![Lumber Loader — printable Manifest (browser)](manifest_html_screenshot.png)](https://kenpaine.github.io/Lumber-Load-Planning/lumber_loader.html)
 
-The **Manifest** is built for a clean **one‑page landscape** print:
+Add a **Customer** and **Order #** (they print on the manifest header), then **🖨 Print** or **✉ Email PDF**. The printed/emailed document is a clean **one‑page letter‑landscape** sheet containing only the car layout and the pick list:
 
 - **Car Layout — drawn to scale**, split per side: each pack is a rectangle whose width equals its length, laid out against a 0–72 ft ruler.
 - **Pick List** — only the loaded line items (product × length × grade × packs). A long list wraps into columns so the diagram stays as large as possible.
+- **🖨 Print** — opens the print dialog (AirPrint, or "Save as PDF"). **✉ Email PDF** — builds the one‑page PDF and opens your share / mail sheet with it attached, subject prefilled (`Load Manifest — Acme Lumber #4821`).
 - **Color palette** selector — choose **Color** (pastel), **High contrast** (saturated), or **B & W (print)** (grayscale) for clean black‑and‑white printing.
 
 ---
@@ -94,7 +96,7 @@ Click **Enable Content** on open.
 
 ## Lumber Loader — iOS app
 
-A native iPhone app (Capacitor 8) that wraps the same combined web app in a native shell — fully offline, with real Taptic Engine haptics. It loads `lumber_loader.html` directly, so it has the identical Tally + Loader modes and the **Load into car →** handoff. See [`app/README.md`](app/README.md) for the Mac‑side build & run steps.
+A native iPhone app (Capacitor 8) that wraps the same combined web app in a native shell — fully offline, with real Taptic Engine haptics. It loads `lumber_loader.html` directly, so it has the identical Tally + Loader modes and the **Load into car →** handoff. The Manifest's **Print** uses native **AirPrint** (or Save to PDF), and **Email PDF** renders the one‑page manifest and opens the iOS share sheet so Mail attaches it. See [`app/README.md`](app/README.md) for the Mac‑side build & run steps.
 
 <img src="ios_app_screenshot.png" alt="Lumber Loader iOS app — Loader mode on iPhone (light mode)" width="300">
 
