@@ -58,6 +58,13 @@
   .iitem{display:flex;align-items:center;gap:7px;padding:5px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;font-size:12px}
   .chip{display:inline-flex;align-items:center;justify-content:center;min-width:54px;padding:2px 6px;border-radius:3px;color:#fff;font-weight:700;font-size:11px;border:2px solid #000}
   .iitem .ilabel{flex:1}.iitem .icount{color:var(--text3);font-size:11px}
+  /* inline per-line editors in the inventory list (product / grade dropdowns + packs).
+     Scoped under .iitem so they outrank the base select / input[type=number] width rules. */
+  .iitem{flex-wrap:wrap}
+  .iitem .isel{width:auto;flex:1 1 56px;min-width:46px;font-size:11px;padding:3px 4px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);outline:none}
+  .iitem .isel:focus{border-color:var(--green)}
+  .iitem .iqty{width:46px;flex:0 0 46px;min-width:46px;font-size:11px;padding:3px 4px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);outline:none}
+  .iitem .iqty:focus{border-color:var(--green)}
   .brem{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px}
   .brem:hover{color:var(--red2)}
   /* per-line side toggle (mixed cars): color-coded 7|5 segmented control, left of the pack */
@@ -160,6 +167,8 @@
     select,input[type=number]{font-size:16px;padding:9px 10px}
     .btn{padding:10px 12px;font-size:13px}
     label{font-size:13px}
+    .iitem .isel{font-size:16px;padding:7px 6px;flex:1 1 90px}
+    .iitem .iqty{font-size:16px;padding:7px 6px;width:64px;flex:0 0 64px}
   }
   @media print{
     @page{size:letter landscape;margin:0.3in}
@@ -216,6 +225,13 @@
           <option value="2" selected>Each selected must appear</option>
           <option value="3">Each must appear + fillers</option>
         </select>
+      </div>
+      <div>
+        <label>Load tallies as (defaults — fine‑tune per line in the Loader)</label>
+        <div class="addgrid">
+          <div><select id="tallyProduct" title="Product the tally loads as" onchange="setTallyPG()"></select></div>
+          <div><select id="tallyGrade" title="Grade the tally loads as" onchange="setTallyPG()"></select></div>
+        </div>
       </div>
       <div id="lenPaletteWrap"></div>
       <button class="btn primary full" style="margin-top:10px" onclick="recommendTap()">◆ Recommend Tallies</button>
@@ -488,9 +504,13 @@ function init(){
   fillSelect("addGrade",GRADES,g=>"Grade "+g);
   fillSelect("singleProduct",PRODUCTS);
   fillSelect("singleGrade",GRADES,g=>"Grade "+g);
+  fillSelect("tallyProduct",PRODUCTS);
+  fillSelect("tallyGrade",GRADES,g=>"Grade "+g);
   document.getElementById("addLength").value="16";
   document.getElementById("singleProduct").value=state.singleProduct;
   document.getElementById("singleGrade").value=state.singleGrade;
+  document.getElementById("tallyProduct").value=state.singleProduct;
+  document.getElementById("tallyGrade").value=state.singleGrade;
   document.getElementById("singleMode").value=state.singleMode?"yes":"no";
   syncSingleUI();
   state.carLayout="5+5"; document.getElementById("carLayout").value="5+5";
@@ -528,6 +548,12 @@ function addItem(){
   solveLayout();
 }
 function setItemSide(i,val){ Haptic.selection(); state.items[i].side=+val; solveLayout(); }
+// inline per-line inventory edits — product/grade re-tag packs (manifest pick list), qty re-packs the car
+function setItemProduct(i,v){ if(!state.items[i]) return; Haptic.selection(); state.items[i].product=v; solveLayout(); }
+function setItemGrade(i,v){ if(!state.items[i]) return; Haptic.selection(); state.items[i].grade=v; solveLayout(); }
+function setItemQty(i,v){ if(!state.items[i]) return; const n=parseInt(v,10);
+  if(!n||n<1){ renderInventory(); return; }   // invalid/blank — snap back; use ✕ to remove a line
+  Haptic.light(); state.items[i].qty=n; solveLayout(); }
 function setAddSide(v){ state.addSide=v; const t=document.getElementById("addSideToggle"); if(t){ const g=t.querySelectorAll(".seg"); g[0].className="seg"+(v===7?" on7":""); g[1].className="seg"+(v===5?" on5":""); } }
 
 // ---------- single product/grade mode ----------
@@ -548,6 +574,8 @@ function toggleSingle(){
 function applySingle(){
   state.singleProduct=document.getElementById("singleProduct").value;
   state.singleGrade=document.getElementById("singleGrade").value;
+  { const tp=document.getElementById("tallyProduct"); if(tp) tp.value=state.singleProduct;
+    const tg=document.getElementById("tallyGrade"); if(tg) tg.value=state.singleGrade; }
   if(state.singleMode){
     const merged={};
     for(const it of state.items){
@@ -560,6 +588,13 @@ function applySingle(){
   }
   syncSingleUI();
   solveLayout();
+}
+// Tally-mode product/grade picker → sets the default tallyToItems() stamps on handoff.
+function setTallyPG(){ Haptic.selection();
+  state.singleProduct=document.getElementById("tallyProduct").value;
+  state.singleGrade=document.getElementById("tallyGrade").value;
+  const sp=document.getElementById("singleProduct"); if(sp) sp.value=state.singleProduct;
+  const sg=document.getElementById("singleGrade"); if(sg) sg.value=state.singleGrade;
 }
 function removeItem(i){ Haptic.light(); state.items.splice(i,1); solveLayout(); }
 function clearAll(){ Haptic.light(); state.items=[]; state.loadedA=state.loadedB=false; state.rows=Array.from({length:state.numRows},()=>[]); state.unplaced=[]; renderAll(); }
@@ -641,9 +676,12 @@ function renderInventory(){
     state.items.forEach((it,i)=>{ const d=document.createElement("div"); d.className="iitem";
       const sd=it.side||defaultSideTag(state.carLayout);
       const pill=mixed?`<span class="sideseg" title="Which side this pack loads on — click 7 or 5 to flip"><b class="seg ${sd===7?'on7':''}" onclick="setItemSide(${i},7)">7</b><b class="seg ${sd===5?'on5':''}" onclick="setItemSide(${i},5)">5</b></span>`:"";
-      d.innerHTML=`${pill}<span class="chip" style="background:${LCOLORS[it.length]};border-color:${PCOLORS[it.product]};color:${GFONT[it.grade]};min-width:74px">${it.product}·${it.length}·${it.grade}</span>
-        <span class="ilabel"></span>
-        <span class="icount">${it.qty} pcs</span>
+      const prodOpts=PRODUCTS.map(p=>`<option ${p===it.product?"selected":""}>${p}</option>`).join("");
+      const gradeOpts=GRADES.map(g=>`<option ${g===it.grade?"selected":""}>${g}</option>`).join("");
+      d.innerHTML=`${pill}<span class="chip" title="${it.length} ft" style="background:${LCOLORS[it.length]};border-color:${PCOLORS[it.product]};color:${GFONT[it.grade]};min-width:32px;padding:2px 5px">${it.length}'</span>
+        <select class="isel" title="Product — edit this line" onchange="setItemProduct(${i},this.value)">${prodOpts}</select>
+        <select class="isel" title="Grade — edit this line" onchange="setItemGrade(${i},this.value)">${gradeOpts}</select>
+        <input class="iqty" type="number" min="1" max="999" value="${it.qty}" title="Packs — edit this line" onchange="setItemQty(${i},this.value)">
         <button class="brem" title="Remove" onclick="removeItem(${i})">✕</button>`;
       el.appendChild(d); });
   }
