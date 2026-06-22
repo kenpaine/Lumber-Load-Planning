@@ -372,6 +372,16 @@ const Haptic=(function(){
   };
 })();
 
+// ---------- Print: native AirPrint inside the app (WKWebView ignores window.print()), plain print on the web ----------
+function nativePrinter(){ let w=window;
+  for(let i=0;i<5&&w;i++){ try{ const C=w.Capacitor; if(C&&C.Plugins&&C.Plugins.LumberPrint) return C.Plugins.LumberPrint; }catch(e){} if(w===w.parent) break; w=w.parent; }
+  return null; }
+function printManifest(){ Haptic.medium();
+  const P=nativePrinter();
+  if(P&&P.print){ try{ P.print({jobName:"Load Manifest"}).catch(()=>{}); }catch(e){ window.print(); } }
+  else { window.print(); }   // plain web browser
+}
+
 const TARGET=72, MAX_SLOTS=9;
 const PRODUCTS=["2x4","2x6","2x8","2x10","4x4","4x6","6x6"];
 const LENGTHS=[8,10,12,14,16,18,20];
@@ -910,7 +920,7 @@ function renderManifest(){
     <label class="mf-pal">Palette
       <select onchange="setPalette(this.value)">${SCHEMES.map((p,i)=>`<option value="${i}" ${state.palette===i?"selected":""}>${p.name}</option>`).join("")}</select>
     </label>
-    <button class="btn printbtn" onclick="Haptic.medium();window.print()">🖨 Print (1 page)</button></div>`;
+    <button class="btn printbtn" onclick="printManifest()">🖨 Print (1 page)</button></div>`;
   h+=`<div class="manifest-head">
     <div><div class="k">Car Type</div>Centerbeam 72 ft</div>
     <div><div class="k">Rows</div>${full}/${state.numRows} full</div>
