@@ -65,6 +65,15 @@
   .iitem .isel:focus{border-color:var(--green)}
   .iitem .iqty{width:46px;flex:0 0 46px;min-width:46px;font-size:11px;padding:3px 4px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);outline:none}
   .iitem .iqty:focus{border-color:var(--green)}
+  /* packs stepper: −/+ buttons either side of a typeable field (iOS has no native number spinners) */
+  .iitem .qstep{display:inline-flex;align-items:stretch;flex:0 0 auto}
+  .iitem .qbtn{flex:0 0 auto;min-width:24px;padding:2px 7px;font-size:15px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;background:var(--bg2);border:1px solid var(--border);color:var(--text2);cursor:pointer;user-select:none}
+  .iitem .qbtn:hover{color:var(--green2);border-color:var(--green)}
+  .iitem .qbtn:active{background:var(--border)}
+  .iitem .qbtn:first-child{border-radius:4px 0 0 4px;border-right:none}
+  .iitem .qbtn:last-child{border-radius:0 4px 4px 0;border-left:none}
+  .iitem .qstep .iqty{flex:0 0 38px;width:38px;min-width:38px;border-radius:0;-webkit-appearance:none;-moz-appearance:textfield}
+  .iitem .qstep .iqty::-webkit-outer-spin-button,.iitem .qstep .iqty::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .brem{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px}
   .brem:hover{color:var(--red2)}
   /* per-line side toggle (mixed cars): color-coded 7|5 segmented control, left of the pack */
@@ -168,7 +177,8 @@
     .btn{padding:10px 12px;font-size:13px}
     label{font-size:13px}
     .iitem .isel{font-size:16px;padding:7px 6px;flex:1 1 90px}
-    .iitem .iqty{font-size:16px;padding:7px 6px;width:64px;flex:0 0 64px}
+    .iitem .qstep .iqty{font-size:16px;padding:7px 4px;flex:0 0 52px;width:52px}
+    .iitem .qbtn{min-width:42px;font-size:19px;padding:6px 10px}
   }
   @media print{
     @page{size:letter landscape;margin:0.3in}
@@ -555,6 +565,8 @@ function setItemGrade(i,v){ if(!state.items[i]) return; Haptic.selection(); stat
 function setItemQty(i,v){ if(!state.items[i]) return; const n=parseInt(v,10);
   if(!n||n<1){ renderInventory(); return; }   // invalid/blank — snap back; use ✕ to remove a line
   Haptic.light(); state.items[i].qty=n; solveLayout(); }
+function bumpItemQty(i,delta){ const it=state.items[i]; if(!it) return; const n=Math.max(1,(it.qty||0)+delta);
+  if(n===it.qty) return; Haptic.selection(); it.qty=n; renderInventory(); solveLayout(); }   // −/+ stepper
 function setAddSide(v){ state.addSide=v; const t=document.getElementById("addSideToggle"); if(t){ const g=t.querySelectorAll(".seg"); g[0].className="seg"+(v===7?" on7":""); g[1].className="seg"+(v===5?" on5":""); } }
 
 // ---------- single product/grade mode ----------
@@ -685,7 +697,7 @@ function renderInventory(){
       d.innerHTML=`${pill}<span class="chip" title="${it.length} ft" style="background:${LCOLORS[it.length]};border-color:${PCOLORS[it.product]};color:${GFONT[it.grade]};min-width:32px;padding:2px 5px">${it.length}'</span>
         <select class="isel" title="Product — edit this line" onchange="setItemProduct(${i},this.value)">${prodOpts}</select>
         <select class="isel" title="Grade — edit this line" onchange="setItemGrade(${i},this.value)">${gradeOpts}</select>
-        <input class="iqty" type="number" min="1" max="999" value="${it.qty}" title="Packs — edit this line" onchange="setItemQty(${i},this.value)">
+        <span class="qstep"><button type="button" class="qbtn" title="−1 pack" onclick="bumpItemQty(${i},-1)">−</button><input class="iqty" type="number" min="1" max="999" value="${it.qty}" title="Packs — tap −/+ or type" onchange="setItemQty(${i},this.value)"><button type="button" class="qbtn" title="+1 pack" onclick="bumpItemQty(${i},1)">+</button></span>
         <button class="brem" title="Remove" onclick="removeItem(${i})">✕</button>`;
       el.appendChild(d); });
   }
