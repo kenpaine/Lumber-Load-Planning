@@ -65,7 +65,8 @@ public class LumberPrintPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "LumberPrintPlugin"
     public let jsName = "LumberPrint"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "print", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "print", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "sharePdf", returnType: CAPPluginReturnPromise)
     ]
 
     @objc func print(_ call: CAPPluginCall) {
@@ -87,6 +88,48 @@ public class LumberPrintPlugin: CAPPlugin, CAPBridgedPlugin {
                 } else {
                     call.resolve(["completed": completed])
                 }
+            }
+        }
+    }
+
+    // Render the web view to a PDF (same @media print layout) and open the iOS share sheet,
+    // so the user can email it (Mail attaches the PDF), Save to Files, AirDrop, etc.
+    @objc func sharePdf(_ call: CAPPluginCall) {
+        let subject = call.getString("subject") ?? "Load Manifest"
+        let filename = call.getString("filename") ?? "LoadManifest.pdf"
+        DispatchQueue.main.async {
+            guard let webView = self.bridge?.webView else {
+                call.reject("No web view available to export")
+                return
+            }
+            let renderer = UIPrintPageRenderer()
+            renderer.addPrintFormatter(webView.viewPrintFormatter(), startingAtPageAt: 0)
+            // US Letter landscape (72 pt/in): 792 × 612, 0.25in margins
+            let paper = CGRect(x: 0, y: 0, width: 792, height: 612)
+            renderer.setValue(paper, forKey: "paperRect")
+            renderer.setValue(paper.insetBy(dx: 18, dy: 18), forKey: "printableRect")
+            let pdfData = NSMutableData()
+            UIGraphicsBeginPDFContextToData(pdfData, paper, nil)
+            let pages = max(renderer.numberOfPages, 1)
+            for i in 0..<pages {
+                UIGraphicsBeginPDFPage()
+                renderer.drawPage(at: i, in: UIGraphicsGetPDFContextBounds())
+            }
+            UIGraphicsEndPDFContext()
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+            do { try pdfData.write(to: url) } catch {
+                call.reject("Could not write the PDF: \(error.localizedDescription)")
+                return
+            }
+            let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+            activity.setValue(subject, forKey: "subject")   // prefills the Mail subject
+            if let pop = activity.popoverPresentationController {
+                pop.sourceView = webView
+                pop.sourceRect = CGRect(x: webView.bounds.midX, y: webView.bounds.midY, width: 0, height: 0)
+                pop.permittedArrowDirections = []
+            }
+            self.bridge?.viewController?.present(activity, animated: true) {
+                call.resolve(["shared": true])
             }
         }
     }
