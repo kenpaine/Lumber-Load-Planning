@@ -545,6 +545,7 @@ function addItem(){
   const side=S.mixed?state.addSide:S.aTag;
   const ex=state.items.find(it=>it.product===product&&it.length===length&&it.grade===grade&&it.side===side);
   if(ex) ex.qty+=qty; else state.items.push({product,length,grade,qty,side});
+  renderInventory();   // sort + show the new line beside its length right away
   solveLayout();
 }
 function setItemSide(i,val){ Haptic.selection(); state.items[i].side=+val; solveLayout(); }
@@ -659,6 +660,9 @@ function solveLayout(){ if(_solveTimer) clearTimeout(_solveTimer);
 function renderAll(){ renderInventory(); renderStats(); render(); renderRowDetail(); renderManifest(); renderPatterns(); buildLegends(); renderLenPalette(); renderTallies(); renderRowPatterns(); }
 
 function renderInventory(){
+  // keep the grid grouped by side (mixed cars) then sorted by length — stable, so same-length
+  // lines stay in the order they were added and a new pack lands beside others of its length.
+  state.items.sort((a,b)=>((b.side||0)-(a.side||0))||(a.length-b.length));
   let lf=0,pk=0; for(const it of state.items){ lf+=it.length*it.qty; pk+=it.qty; }
   const cap=state.numRows*TARGET;
   document.getElementById("lfVal").textContent=lf.toLocaleString();
