@@ -195,6 +195,13 @@
     .secttitle{color:#2e5e20!important}
     .printbtn,.mf-pal,.screen-only,.cr{display:none!important}
     .printsheet{border:none!important;padding:0!important;margin:0!important}
+    /* one landscape letter page = just the car-layout diagram + the pick list. Cap the diagram
+       height so the pick list below it still fits on the same page. */
+    svg.mfdiagram{width:auto!important;height:auto!important;max-width:100%;max-height:4.7in}
+    .printsheet .sheet-title{font-size:15px}
+    .printsheet .ps-sub{font-size:10px;margin:1px 0 6px}
+    .pl-cols{gap:10px}
+    .pl-title{margin-top:8px}
   }
 </style>
 </head>
@@ -915,13 +922,13 @@ function renderManifest(){
   const loaded=state.rows.reduce((s,r)=>s+r.reduce((a,c)=>a+c.length,0),0);
   const full=state.rows.filter(r=>r.reduce((a,c)=>a+c.length,0)===TARGET).length;
   const date=new Date().toLocaleDateString();
-  let h=`<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap">
+  let h=`<div class="screen-only" style="display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap">
     <div class="secttitle" style="margin:0">Load Manifest</div>
     <label class="mf-pal">Palette
       <select onchange="setPalette(this.value)">${SCHEMES.map((p,i)=>`<option value="${i}" ${state.palette===i?"selected":""}>${p.name}</option>`).join("")}</select>
     </label>
     <button class="btn printbtn" onclick="printManifest()">🖨 Print (1 page)</button></div>`;
-  h+=`<div class="manifest-head">
+  h+=`<div class="manifest-head screen-only">
     <div><div class="k">Car Type</div>Centerbeam 72 ft</div>
     <div><div class="k">Rows</div>${full}/${state.numRows} full</div>
     <div><div class="k">Total Lineal Ft</div>${loaded} ft</div>
