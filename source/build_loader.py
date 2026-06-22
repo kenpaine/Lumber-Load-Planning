@@ -588,6 +588,22 @@ def main():
         pal_cell.Font.Bold = True
         ldsheet.Range("J7:L7").BorderAround(1, 2)        # xlContinuous, xlThin
 
+        # Fix LOAD STATUS formulas: the Planner template references C5 as a numeric row
+        # count, but Loader stores a text token ("5+5"/"7+5"/"7+7") in C5 instead, so
+        # formulas like =C5*C6 evaluate to #VALUE!.  Replace with an IF-chain lookup.
+        rows = 'IF(C5="5+5",10,IF(C5="7+5",12,IF(C5="7+7",14,10)))'
+        ldsheet.Range("L11").Formula = "=" + rows + "*C6"
+        ldsheet.Range("L12").Formula = "=F30-" + rows + "*C6"
+        ldsheet.Range("L17").Formula = (
+            '=IF(E30-COUNTA($B$34:$J$47)>0,'
+            '"OVERLOADED ✕ "&(E30-COUNTA($B$34:$J$47))&" unplaced",'
+            'IF(AND(COUNTIF($L$34:$L$47,"OK 72")=' + rows + ',' + rows + '>0),'
+            '"COMPLETE ✔ all "&' + rows + '&" rows = 72 ft",'
+            'IF(COUNTIF($L$34:$L$47,"OVER*")>0,'
+            '"ROW OVER 72 ⚠ fix",'
+            '"INCOMPLETE ↓ keep filling")))'
+        )
+
         # Compound-car dual selection: the 7-row table tracks its picked row in N1, the
         # 5-row table in N2, so a tally can stay selected in BOTH tables at once.
         tw = wb.Worksheets("Tally")
